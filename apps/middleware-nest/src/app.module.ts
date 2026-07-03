@@ -21,6 +21,7 @@ import { AuthProxyModule } from './auth-proxy/auth-proxy.module';
 import { BookingProxyModule } from './booking-proxy/booking-proxy.module';
 import { DirectoryProxyModule } from './directory-proxy/directory-proxy.module';
 import { StatusProxyModule } from './status-proxy/status-proxy.module';
+import { FrontendProxyMiddleware } from './frontend-proxy/frontend-proxy.middleware';
 
 @Module({
   imports: [
@@ -54,10 +55,12 @@ import { StatusProxyModule } from './status-proxy/status-proxy.module';
     { provide: APP_FILTER, useClass: AllExceptionsFilter },
     { provide: APP_INTERCEPTOR, useClass: RequestNormalizerInterceptor },
     { provide: APP_INTERCEPTOR, useClass: SafeLoggingInterceptor },
+    FrontendProxyMiddleware,
   ],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer): void {
     consumer.apply(RequestIdMiddleware).forRoutes('*');
+    consumer.apply(FrontendProxyMiddleware).forRoutes('*');
   }
 }

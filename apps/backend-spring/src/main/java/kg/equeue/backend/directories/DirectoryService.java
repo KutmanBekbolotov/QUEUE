@@ -259,6 +259,14 @@ public class DirectoryService {
     }
 
     @Transactional(readOnly = true)
+    public List<WindowResponse> windows() {
+        return serviceWindowRepository.findAllByOrderByDepartmentIdAscCodeAsc().stream()
+                .filter(window -> departmentScopeService.canAccessDepartment(window.getDepartmentId()))
+                .map(this::windowResponse)
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
     public List<WindowResponse> windows(UUID departmentId) {
         departmentScopeService.requireDepartmentAccess(departmentId);
         return serviceWindowRepository.findByDepartmentIdOrderByCodeAsc(departmentId).stream().map(this::windowResponse).toList();
@@ -619,4 +627,3 @@ public class DirectoryService {
         return "{\"" + key + "\":\"" + value + "\"}";
     }
 }
-

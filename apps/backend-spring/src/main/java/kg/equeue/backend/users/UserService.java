@@ -44,6 +44,14 @@ public class UserService {
     }
 
     @Transactional(readOnly = true)
+    public List<UserResponse> operators() {
+        return userRepository.findAll().stream()
+                .filter(user -> user.getRoles().stream().anyMatch(role -> "OPERATOR".equals(role.getCode())))
+                .map(this::toResponse)
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
     public UserResponse get(UUID id) {
         return userRepository.findDetailedById(id)
                 .map(this::toResponse)
@@ -117,4 +125,3 @@ public class UserService {
         );
     }
 }
-

@@ -154,6 +154,12 @@ public class DirectoryController {
         return directoryService.windows(departmentId);
     }
 
+    @GetMapping("/service-windows")
+    @PreAuthorize("hasAuthority('WINDOW_READ')")
+    List<WindowResponse> serviceWindows() {
+        return directoryService.windows();
+    }
+
     @PostMapping("/departments/{departmentId}/windows")
     @PreAuthorize("hasAuthority('WINDOW_CREATE')")
     WindowResponse createWindow(@PathVariable UUID departmentId, @Valid @RequestBody WindowRequest request, HttpServletRequest httpRequest) {

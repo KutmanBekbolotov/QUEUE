@@ -9,6 +9,8 @@ import org.springframework.data.jpa.repository.Query;
 import jakarta.persistence.LockModeType;
 
 public interface ServiceWindowRepository extends JpaRepository<ServiceWindowEntity, UUID> {
+    List<ServiceWindowEntity> findAllByOrderByDepartmentIdAscCodeAsc();
+
     List<ServiceWindowEntity> findByDepartmentIdOrderByCodeAsc(UUID departmentId);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
