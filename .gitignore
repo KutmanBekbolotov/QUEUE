@@ -1,0 +1,22 @@
+.DS_Store
+.env
+.idea/
+.vscode/
+*.iml
+.tools/
+
+# Java
+apps/backend-spring/target/
+apps/backend-spring/.mvn/wrapper/maven-wrapper.jar
+
+# Node
+node_modules/
+apps/middleware-nest/node_modules/
+apps/middleware-nest/dist/
+apps/middleware-nest/coverage/
+
+# Local data
+infra/postgres/data/
+infra/redis/data/
+infra/rabbitmq/data/
+infra/minio/data/

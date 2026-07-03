@@ -1,0 +1,22 @@
+package kg.equeue.backend.reports;
+
+public enum ReportType {
+    SUMMARY,
+    BY_REGION,
+    BY_DEPARTMENT,
+    BY_EMPLOYEE,
+    BY_SERVICE,
+    BY_SOURCE,
+    BY_STATUS,
+    WAITING_TIME,
+    SERVICE_TIME,
+    CANCELLATIONS,
+    NO_SHOWS,
+    BOOKINGS,
+    WINDOW_WORKLOAD,
+    WORKLOAD_HOURLY,
+    WORKLOAD_DAILY,
+    TICKETS_DETAIL,
+    BOOKINGS_DETAIL,
+    INTEGRATIONS
+}

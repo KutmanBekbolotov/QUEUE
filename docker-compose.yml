@@ -1,0 +1,135 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-equeue}
+      POSTGRES_USER: ${POSTGRES_USER:-equeue}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-equeue}
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./infra/postgres/init:/docker-entrypoint-initdb.d:ro
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-equeue}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-equeue}
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  backend-spring:
+    build:
+      context: ./apps/backend-spring
+    environment:
+      SERVER_PORT: 8080
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: ${POSTGRES_DB:-equeue}
+      DB_USER: ${POSTGRES_USER:-equeue}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-equeue}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USER: ${RABBITMQ_USER:-equeue}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-equeue}
+      BACKEND_JWT_SECRET: ${BACKEND_JWT_SECRET:-replace-with-at-least-32-characters-secret}
+      BACKEND_INTEGRATION_KEY: ${BACKEND_INTEGRATION_KEY:-dev-backend-integration-key-change-me}
+      CORS_ALLOWED_ORIGINS: http://localhost:3000,http://localhost:8088
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    ports:
+      - "${BACKEND_PORT:-8080}:8080"
+
+  backend-test:
+    image: maven:3.9.9-eclipse-temurin-21
+    profiles: ["tools"]
+    working_dir: /workspace
+    volumes:
+      - ./apps/backend-spring:/workspace
+      - maven_cache:/root/.m2
+    command: mvn test
+
+  flyway:
+    image: flyway/flyway:10-alpine
+    profiles: ["tools"]
+    command:
+      - -url=jdbc:postgresql://postgres:5432/${POSTGRES_DB:-equeue}
+      - -user=${POSTGRES_USER:-equeue}
+      - -password=${POSTGRES_PASSWORD:-equeue}
+      - -locations=filesystem:/flyway/sql
+      - migrate
+    volumes:
+      - ./apps/backend-spring/src/main/resources/db/migration:/flyway/sql:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  middleware-nest:
+    build:
+      context: ./apps/middleware-nest
+    environment:
+      PORT: 3000
+      BACKEND_BASE_URL: http://backend-spring:8080
+      BACKEND_INTEGRATION_KEY: ${BACKEND_INTEGRATION_KEY:-dev-backend-integration-key-change-me}
+      EXTERNAL_API_KEYS: ${EXTERNAL_API_KEYS:-dev-zenoss-key,dev-tunduk-key,dev-cabinet-key}
+    depends_on:
+      - backend-spring
+    ports:
+      - "${MIDDLEWARE_PORT:-3000}:3000"
+
+  nginx:
+    image: nginx:1.27-alpine
+    depends_on:
+      - backend-spring
+      - middleware-nest
+    ports:
+      - "8088:80"
+    volumes:
+      - ./infra/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+
+  minio:
+    image: minio/minio:RELEASE.2024-07-16T23-46-41Z
+    profiles: ["minio"]
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minio
+      MINIO_ROOT_PASSWORD: minio12345
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+
+volumes:
+  postgres_data:
+  minio_data:
+  maven_cache:
