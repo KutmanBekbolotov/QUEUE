@@ -7,6 +7,26 @@ import { AppModule } from './app.module';
 
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(AppModule, { bufferLogs: true });
+  const configService = app.get(ConfigService);
+
+  app.enableCors({
+    origin: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: [
+      'Authorization',
+      'Content-Type',
+      'Accept',
+      'X-API-Key',
+      'X-Integration-Client',
+      'Idempotency-Key',
+      'X-External-Request-Id',
+      'X-Request-Id',
+      'X-Correlation-Id',
+    ],
+    exposedHeaders: ['X-Request-Id', 'X-Correlation-Id'],
+    credentials: false,
+  });
+
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
@@ -38,7 +58,6 @@ async function bootstrap(): Promise<void> {
     jsonDocumentUrl: '/docs-json',
   });
 
-  const configService = app.get(ConfigService);
   const port = configService.get<number>('PORT') ?? 3000;
   await app.listen(port);
 }
