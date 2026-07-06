@@ -100,9 +100,16 @@ services:
       PORT: 3000
       BACKEND_BASE_URL: http://backend-spring:8080
       BACKEND_INTEGRATION_KEY: ${BACKEND_INTEGRATION_KEY:-dev-backend-integration-key-change-me}
+      BACKEND_JWT_SECRET: ${BACKEND_JWT_SECRET:-replace-with-at-least-32-characters-secret}
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: ${POSTGRES_DB:-equeue}
+      DB_USER: ${POSTGRES_USER:-equeue}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-equeue}
       EXTERNAL_API_KEYS: ${EXTERNAL_API_KEYS:-dev-zenoss-key,dev-tunduk-key,dev-cabinet-key}
     depends_on:
       - backend-spring
+      - postgres
     ports:
       - "${MIDDLEWARE_PORT:-3000}:3000"
 

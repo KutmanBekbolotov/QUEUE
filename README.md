@@ -28,10 +28,10 @@ cp apps/middleware-nest/.env.example apps/middleware-nest/.env
 Core variables:
 
 - `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`: PostgreSQL database settings.
-- `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`: Spring datasource settings.
+- `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`: datasource settings for Spring and the NestJS middleware auth module.
 - `REDIS_HOST`, `REDIS_PORT`: Redis connection settings.
 - `RABBITMQ_HOST`, `RABBITMQ_PORT`, `RABBITMQ_USER`, `RABBITMQ_PASSWORD`: RabbitMQ connection settings.
-- `BACKEND_JWT_SECRET`: JWT signing secret. Use a strong secret outside local development.
+- `BACKEND_JWT_SECRET`: JWT signing secret. Use a strong secret outside local development and keep the exact same value in Spring and NestJS.
 - `BACKEND_INTEGRATION_KEY`: shared key that NestJS forwards to Spring as `X-Backend-Integration-Key`.
 - `EXTERNAL_API_KEYS`: comma-separated external client API keys accepted by NestJS.
 - `BACKEND_BASE_URL`: Spring base URL used by NestJS.
@@ -60,6 +60,12 @@ Start the full stack:
 
 ```bash
 make dev
+```
+
+Run live Docker smoke against PostgreSQL, RabbitMQ, Spring, and NestJS:
+
+```bash
+START_STACK=true scripts/live-smoke.sh
 ```
 
 Useful root commands:
@@ -377,7 +383,7 @@ curl "http://localhost:3000/external/zenoss/reports/summary?dateFrom=2026-07-01&
 After PostgreSQL, Redis, RabbitMQ, Spring, and NestJS are running locally, execute the reusable live smoke:
 
 ```bash
-./.tools/phase35-live-smoke.sh
+scripts/live-smoke.sh
 ```
 
 The script creates isolated smoke data and verifies auth, RBAC, ticket lifecycle, terminal/TV device flows, booking idempotency, RabbitMQ queue publish, Nest external routes, and request-id audit forwarding. It uses `docker compose exec` for PostgreSQL and RabbitMQ checks, so run it from a shell that can access the Docker socket.
@@ -411,7 +417,7 @@ Implemented in this scaffold:
 - NestJS middleware with validation, external auth guard, idempotency forwarding, safe logging, request normalization, external routes, backend client, and health.
 - Phase 2 directories and queue core: regions, departments, rooms, halls, windows, services, assignments, ticket creation, call-next, lifecycle transitions, terminal ticket creation, TV/operator SSE, ticket events, audit, and RabbitMQ ticket domain events.
 - Phase 3 online booking: booking slots, available dates/slots, booking create/cancel/check-in/expire, idempotency persistence through `integration_requests`, booking lifecycle events, RabbitMQ booking events, and external middleware wiring for Website Cabinet, Tunduk, and Zenoss.
-- Phase 3.5 stability work: Spring Maven wrapper, backend compile/test pass, expanded auth/scope/idempotency/terminal/booking-slot tests, NestJS test/build pass, Flyway clean apply, Spring/Nest live startup, RabbitMQ publish verification, and full auth/RBAC/ticket/booking/external middleware smoke pass via `.tools/phase35-live-smoke.sh`.
+- Phase 3.5 stability work: Spring Maven wrapper, backend compile/test pass, expanded auth/scope/idempotency/terminal/booking-slot tests, NestJS test/build pass, Flyway clean apply, Spring/Nest live startup, RabbitMQ publish verification, and full auth/RBAC/ticket/booking/external middleware smoke pass via `scripts/live-smoke.sh`.
 - Phase 4 reports and exports: scoped Spring report module, PostgreSQL aggregations, detailed paginated ticket/booking reports, export tracking and local storage, CSV/XLSX/PDF writers, audit hooks, personal-data masking, report permissions, and Zenoss report proxy routes.
 
 Next phases should replace remaining disabled DB-concurrency/report skeletons with Testcontainers or integration fixtures, add RabbitMQ-backed SSE fanout across instances, add MinIO-backed signed export URLs if needed, and prepare production deployment overlays.

@@ -31,6 +31,7 @@ async function bootstrap(): Promise<void> {
     .setVersion('v1')
     .addServer('http://localhost:3000', 'Local middleware')
     .addServer('http://localhost:8088', 'Local nginx gateway')
+    .addBearerAuth({ type: 'http', scheme: 'bearer', bearerFormat: 'JWT' }, 'bearer')
     .addApiKey({ type: 'apiKey', name: 'X-API-Key', in: 'header' }, 'external-api-key')
     .addApiKey({ type: 'apiKey', name: 'Idempotency-Key', in: 'header' }, 'idempotency-key')
     .build();

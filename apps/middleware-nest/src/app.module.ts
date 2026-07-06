@@ -17,7 +17,7 @@ import { CrmIntegrationModule } from './crm-integration/crm-integration.module';
 import { ZenossIntegrationModule } from './zenoss-integration/zenoss-integration.module';
 import { TundukIntegrationModule } from './tunduk-integration/tunduk-integration.module';
 import { WebsiteCabinetIntegrationModule } from './website-cabinet-integration/website-cabinet-integration.module';
-import { AuthProxyModule } from './auth-proxy/auth-proxy.module';
+import { AuthModule } from './auth/auth.module';
 import { BookingProxyModule } from './booking-proxy/booking-proxy.module';
 import { DirectoryProxyModule } from './directory-proxy/directory-proxy.module';
 import { StatusProxyModule } from './status-proxy/status-proxy.module';
@@ -45,7 +45,7 @@ import { FrontendProxyMiddleware } from './frontend-proxy/frontend-proxy.middlew
     ZenossIntegrationModule,
     TundukIntegrationModule,
     WebsiteCabinetIntegrationModule,
-    AuthProxyModule,
+    AuthModule,
     BookingProxyModule,
     DirectoryProxyModule,
     StatusProxyModule,

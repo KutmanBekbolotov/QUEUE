@@ -5,7 +5,6 @@ import { NextFunction, Request, Response } from 'express';
 
 const FRONTEND_PROXY_PREFIXES = [
   '/api/v1',
-  '/auth',
   '/audit-logs',
   '/booking',
   '/departments',
