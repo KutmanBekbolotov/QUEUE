@@ -2,12 +2,16 @@ package kg.equeue.backend.common;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import com.fasterxml.jackson.databind.JsonMappingException;
+import com.fasterxml.jackson.databind.exc.InvalidFormatException;
 import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.stream.Collectors;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.validation.FieldError;
@@ -17,6 +21,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.async.AsyncRequestTimeoutException;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -45,6 +50,30 @@ public class GlobalExceptionHandler {
         }
         return ResponseEntity.badRequest()
                 .body(error("VALIDATION_ERROR", "Request validation failed", details, request));
+    }
+
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    ResponseEntity<ErrorResponse> handleUnreadableRequestBody(HttpMessageNotReadableException ex, HttpServletRequest request) {
+        Map<String, Object> details = new LinkedHashMap<>();
+        Throwable cause = ex.getCause();
+        if (cause instanceof InvalidFormatException invalidFormat) {
+            String field = jsonPath(invalidFormat);
+            String expectedType = invalidFormat.getTargetType() == null ? "expected type" : invalidFormat.getTargetType().getSimpleName();
+            details.put(field.isBlank() ? "body" : field, "Invalid value for " + expectedType);
+        } else {
+            details.put("body", "Malformed JSON request");
+        }
+        return ResponseEntity.badRequest()
+                .body(error("VALIDATION_ERROR", "Request validation failed", details, request));
+    }
+
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    ResponseEntity<ErrorResponse> handleTypeMismatch(MethodArgumentTypeMismatchException ex, HttpServletRequest request) {
+        Class<?> requiredType = ex.getRequiredType();
+        String expectedType = requiredType == null ? "expected type" : requiredType.getSimpleName();
+        return ResponseEntity.badRequest()
+                .body(error("VALIDATION_ERROR", "Request validation failed",
+                        Map.of(ex.getName(), "Invalid value for " + expectedType), request));
     }
 
     @ExceptionHandler(AuthenticationException.class)
@@ -86,5 +115,11 @@ public class GlobalExceptionHandler {
             requestId = request.getHeader(RequestContext.REQUEST_ID_HEADER);
         }
         return new ErrorResponse(Instant.now(), requestId, code, message, details == null ? Map.of() : details);
+    }
+
+    private String jsonPath(JsonMappingException ex) {
+        return ex.getPath().stream()
+                .map(reference -> reference.getFieldName() == null ? "[" + reference.getIndex() + "]" : reference.getFieldName())
+                .collect(Collectors.joining("."));
     }
 }

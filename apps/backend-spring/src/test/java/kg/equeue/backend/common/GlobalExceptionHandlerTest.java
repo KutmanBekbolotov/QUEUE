@@ -2,9 +2,12 @@ package kg.equeue.backend.common;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.fasterxml.jackson.databind.exc.InvalidFormatException;
+import java.util.UUID;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
@@ -25,6 +28,21 @@ class GlobalExceptionHandlerTest {
         assertThat(response.getBody()).isNotNull();
         assertThat(response.getBody().code()).isEqualTo("METHOD_NOT_ALLOWED");
         assertThat(response.getBody().details()).containsEntry("method", "POST");
+    }
+
+    @Test
+    void unreadableUuidRequestBodyReturnsValidationError() {
+        MockHttpServletRequest request = new MockHttpServletRequest("POST", "/api/v1/departments/department-id/windows");
+        InvalidFormatException invalidFormat = InvalidFormatException.from(null, "Cannot deserialize value", "1", UUID.class);
+        invalidFormat.prependPath(new Object(), "hallId");
+
+        var response = handler.handleUnreadableRequestBody(
+                new HttpMessageNotReadableException("JSON parse error", invalidFormat, null), request);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().code()).isEqualTo("VALIDATION_ERROR");
+        assertThat(response.getBody().details()).containsEntry("hallId", "Invalid value for UUID");
     }
 
     @Test
