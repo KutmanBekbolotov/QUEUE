@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.UUID;
 import kg.equeue.backend.users.dto.AssignUserRolesRequest;
 import kg.equeue.backend.users.dto.CreateUserRequest;
+import kg.equeue.backend.users.dto.UpdateUserRequest;
 import kg.equeue.backend.users.dto.UpdateUserStatusRequest;
 import kg.equeue.backend.users.dto.UserResponse;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -16,6 +17,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -45,6 +47,12 @@ public class UserController {
     @PreAuthorize("hasAuthority('USER_CREATE')")
     UserResponse create(@Valid @RequestBody CreateUserRequest request, HttpServletRequest httpRequest) {
         return userService.create(request, httpRequest);
+    }
+
+    @RequestMapping(value = "/{id}", method = {RequestMethod.PUT, RequestMethod.PATCH})
+    @PreAuthorize("hasAuthority('USER_UPDATE')")
+    UserResponse update(@PathVariable UUID id, @Valid @RequestBody UpdateUserRequest request, HttpServletRequest httpRequest) {
+        return userService.update(id, request, httpRequest);
     }
 
     @PatchMapping("/{id}/status")

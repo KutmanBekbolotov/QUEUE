@@ -8,6 +8,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.util.Optional;
+import java.util.UUID;
 import kg.equeue.backend.audit.LoginAuditLogEntity;
 import kg.equeue.backend.audit.LoginAuditLogRepository;
 import kg.equeue.backend.auth.dto.AuthResponse;
@@ -16,6 +17,7 @@ import kg.equeue.backend.common.ApiException;
 import kg.equeue.backend.config.SecurityProperties;
 import kg.equeue.backend.permissions.PermissionEntity;
 import kg.equeue.backend.roles.RoleEntity;
+import kg.equeue.backend.users.UserDepartmentScopeRepository;
 import kg.equeue.backend.users.UserEntity;
 import kg.equeue.backend.users.UserRepository;
 import kg.equeue.backend.users.UserStatus;
@@ -29,12 +31,19 @@ class AuthServiceTest {
     private final UserRepository userRepository = org.mockito.Mockito.mock(UserRepository.class);
     private final RefreshTokenRepository refreshTokenRepository = org.mockito.Mockito.mock(RefreshTokenRepository.class);
     private final LoginAuditLogRepository loginAuditLogRepository = org.mockito.Mockito.mock(LoginAuditLogRepository.class);
+    private final UserDepartmentScopeRepository departmentScopeRepository = new UserDepartmentScopeRepository(null) {
+        @Override
+        public UUID primaryDepartmentId(UUID userId) {
+            return null;
+        }
+    };
     private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
     private final SecurityProperties securityProperties = securityProperties();
     private final AuthService authService = new AuthService(
             userRepository,
             refreshTokenRepository,
             loginAuditLogRepository,
+            departmentScopeRepository,
             passwordEncoder,
             new JwtService(securityProperties),
             securityProperties

@@ -11,6 +11,7 @@ public record UserResponse(
         String fullName,
         String email,
         String phone,
+        UUID departmentId,
         UserStatus status,
         int tokenVersion,
         List<String> roles,
@@ -18,4 +19,3 @@ public record UserResponse(
         Instant updatedAt
 ) {
 }
-

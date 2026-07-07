@@ -1,6 +1,8 @@
 package kg.equeue.backend.users;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.anySet;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -13,7 +15,9 @@ import kg.equeue.backend.audit.AuditLogRepository;
 import kg.equeue.backend.audit.AuditService;
 import kg.equeue.backend.auth.AuthenticatedPrincipal;
 import kg.equeue.backend.common.ApiException;
+import kg.equeue.backend.roles.RoleEntity;
 import kg.equeue.backend.roles.RoleRepository;
+import kg.equeue.backend.users.dto.UpdateUserRequest;
 import kg.equeue.backend.users.dto.UpdateUserStatusRequest;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -24,10 +28,14 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 class UserServiceTest {
 
     private final UserRepository userRepository = mock(UserRepository.class);
+    private final RoleRepository roleRepository = mock(RoleRepository.class);
+    private final FakeUserDepartmentScopeRepository departmentScopeRepository = new FakeUserDepartmentScopeRepository();
+    private final PasswordEncoder passwordEncoder = mock(PasswordEncoder.class);
     private final UserService userService = new UserService(
             userRepository,
-            mock(RoleRepository.class),
-            mock(PasswordEncoder.class),
+            roleRepository,
+            departmentScopeRepository,
+            passwordEncoder,
             new AuditService(mock(AuditLogRepository.class))
     );
 
@@ -59,5 +67,79 @@ class UserServiceTest {
                 .hasMessage("Current user cannot deactivate own account");
 
         verify(userRepository, never()).save(user);
+    }
+
+    @Test
+    void updateChangesProfileRolesPasswordAndDepartmentScope() {
+        UUID userId = UUID.randomUUID();
+        UUID departmentId = UUID.randomUUID();
+        RoleEntity role = new RoleEntity();
+        role.setCode("OPERATOR");
+        UserEntity user = new UserEntity();
+        user.setId(userId);
+        user.setUsername("old-operator");
+        user.setStatus(UserStatus.ACTIVE);
+        user.setTokenVersion(3);
+
+        when(userRepository.findDetailedById(userId)).thenReturn(Optional.of(user));
+        when(userRepository.existsByUsernameIgnoreCase("new-operator")).thenReturn(false);
+        when(passwordEncoder.encode("NewPassword123")).thenReturn("encoded-password");
+        when(roleRepository.findByCodeIn(anySet())).thenReturn(List.of(role));
+        departmentScopeRepository.existingDepartmentId = departmentId;
+        departmentScopeRepository.primaryDepartmentId = departmentId;
+        when(userRepository.save(user)).thenReturn(user);
+
+        var response = userService.update(
+                userId,
+                new UpdateUserRequest(
+                        "new-operator",
+                        "NewPassword123",
+                        "New Operator",
+                        "operator@example.com",
+                        "+996555000000",
+                        departmentId,
+                        java.util.Set.of("OPERATOR")
+                ),
+                null
+        );
+
+        assertThat(user.getUsername()).isEqualTo("new-operator");
+        assertThat(user.getPasswordHash()).isEqualTo("encoded-password");
+        assertThat(user.getFullName()).isEqualTo("New Operator");
+        assertThat(user.getEmail()).isEqualTo("operator@example.com");
+        assertThat(user.getPhone()).isEqualTo("+996555000000");
+        assertThat(user.getTokenVersion()).isEqualTo(4);
+        assertThat(response.departmentId()).isEqualTo(departmentId);
+        assertThat(response.roles()).containsExactly("OPERATOR");
+        assertThat(departmentScopeRepository.replacedUserId).isEqualTo(userId);
+        assertThat(departmentScopeRepository.replacedDepartmentId).isEqualTo(departmentId);
+        verify(userRepository).save(user);
+    }
+
+    private static class FakeUserDepartmentScopeRepository extends UserDepartmentScopeRepository {
+        UUID existingDepartmentId;
+        UUID primaryDepartmentId;
+        UUID replacedUserId;
+        UUID replacedDepartmentId;
+
+        FakeUserDepartmentScopeRepository() {
+            super(null);
+        }
+
+        @Override
+        public UUID primaryDepartmentId(UUID userId) {
+            return primaryDepartmentId;
+        }
+
+        @Override
+        public boolean departmentExists(UUID departmentId) {
+            return departmentId.equals(existingDepartmentId);
+        }
+
+        @Override
+        public void replacePrimaryDepartment(UUID userId, UUID departmentId) {
+            replacedUserId = userId;
+            replacedDepartmentId = departmentId;
+        }
     }
 }

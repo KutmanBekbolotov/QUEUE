@@ -8,9 +8,9 @@ public record MeResponse(
         UUID id,
         String username,
         String fullName,
+        UUID departmentId,
         UserStatus status,
         List<String> roles,
         List<String> permissions
 ) {
 }
-

@@ -12,6 +12,7 @@ import kg.equeue.backend.roles.RoleEntity;
 import kg.equeue.backend.roles.RoleRepository;
 import kg.equeue.backend.users.dto.AssignUserRolesRequest;
 import kg.equeue.backend.users.dto.CreateUserRequest;
+import kg.equeue.backend.users.dto.UpdateUserRequest;
 import kg.equeue.backend.users.dto.UpdateUserStatusRequest;
 import kg.equeue.backend.users.dto.UserResponse;
 import org.springframework.http.HttpStatus;
@@ -24,15 +25,18 @@ public class UserService {
 
     private final UserRepository userRepository;
     private final RoleRepository roleRepository;
+    private final UserDepartmentScopeRepository departmentScopeRepository;
     private final PasswordEncoder passwordEncoder;
     private final AuditService auditService;
 
     public UserService(UserRepository userRepository,
                        RoleRepository roleRepository,
+                       UserDepartmentScopeRepository departmentScopeRepository,
                        PasswordEncoder passwordEncoder,
                        AuditService auditService) {
         this.userRepository = userRepository;
         this.roleRepository = roleRepository;
+        this.departmentScopeRepository = departmentScopeRepository;
         this.passwordEncoder = passwordEncoder;
         this.auditService = auditService;
     }
@@ -64,6 +68,7 @@ public class UserService {
         if (userRepository.existsByUsernameIgnoreCase(request.username())) {
             throw new ApiException(HttpStatus.CONFLICT, "USERNAME_EXISTS", "Username already exists");
         }
+        requireDepartmentExists(request.departmentId());
         UserEntity user = new UserEntity();
         user.setUsername(request.username());
         user.setPasswordHash(passwordEncoder.encode(request.password()));
@@ -72,8 +77,59 @@ public class UserService {
         user.setPhone(request.phone());
         user.setStatus(UserStatus.ACTIVE);
         user.setRoles(loadRoles(request.roleCodes()));
-        UserEntity saved = userRepository.save(user);
+        UserEntity saved = userRepository.saveAndFlush(user);
+        departmentScopeRepository.replacePrimaryDepartment(saved.getId(), request.departmentId());
         auditService.write("USER_CREATE", "USER", saved.getId(), "{\"username\":\"" + saved.getUsername() + "\"}", httpRequest);
+        return toResponse(saved);
+    }
+
+    @Transactional
+    public UserResponse update(UUID id, UpdateUserRequest request, HttpServletRequest httpRequest) {
+        UserEntity user = userRepository.findDetailedById(id)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "USER_NOT_FOUND", "User was not found"));
+
+        boolean invalidateTokens = false;
+        if (request.username() != null) {
+            if (request.username().isBlank()) {
+                throw new ApiException(HttpStatus.BAD_REQUEST, "USERNAME_REQUIRED", "Username is required");
+            }
+            if (!request.username().equalsIgnoreCase(user.getUsername())
+                    && userRepository.existsByUsernameIgnoreCase(request.username())) {
+                throw new ApiException(HttpStatus.CONFLICT, "USERNAME_EXISTS", "Username already exists");
+            }
+            if (!request.username().equals(user.getUsername())) {
+                user.setUsername(request.username());
+                invalidateTokens = true;
+            }
+        }
+        if (request.password() != null && !request.password().isBlank()) {
+            user.setPasswordHash(passwordEncoder.encode(request.password()));
+            invalidateTokens = true;
+        }
+        if (request.fullName() != null) {
+            user.setFullName(request.fullName());
+        }
+        if (request.email() != null) {
+            user.setEmail(request.email());
+        }
+        if (request.phone() != null) {
+            user.setPhone(request.phone());
+        }
+        if (request.roleCodes() != null) {
+            user.setRoles(loadRoles(request.roleCodes()));
+            invalidateTokens = true;
+        }
+        if (request.departmentId() != null) {
+            requireDepartmentExists(request.departmentId());
+            departmentScopeRepository.replacePrimaryDepartment(id, request.departmentId());
+            invalidateTokens = true;
+        }
+        if (invalidateTokens) {
+            user.setTokenVersion(user.getTokenVersion() + 1);
+        }
+
+        UserEntity saved = userRepository.save(user);
+        auditService.write("USER_UPDATE", "USER", saved.getId(), "{\"user\":\"updated\"}", httpRequest);
         return toResponse(saved);
     }
 
@@ -113,6 +169,12 @@ public class UserService {
         return new HashSet<>(roles);
     }
 
+    private void requireDepartmentExists(UUID departmentId) {
+        if (departmentId != null && !departmentScopeRepository.departmentExists(departmentId)) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "DEPARTMENT_NOT_FOUND", "Department was not found");
+        }
+    }
+
     private UserResponse toResponse(UserEntity user) {
         UserEntity detailed = user.getRoles().isEmpty() ? userRepository.findDetailedById(user.getId()).orElse(user) : user;
         return new UserResponse(
@@ -121,6 +183,7 @@ public class UserService {
                 detailed.getFullName(),
                 detailed.getEmail(),
                 detailed.getPhone(),
+                departmentScopeRepository.primaryDepartmentId(detailed.getId()),
                 detailed.getStatus(),
                 detailed.getTokenVersion(),
                 detailed.getRoles().stream().map(RoleEntity::getCode).sorted().toList(),

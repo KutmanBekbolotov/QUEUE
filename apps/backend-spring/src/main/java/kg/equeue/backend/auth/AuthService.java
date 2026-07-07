@@ -19,6 +19,7 @@ import kg.equeue.backend.common.ApiException;
 import kg.equeue.backend.config.SecurityProperties;
 import kg.equeue.backend.permissions.PermissionEntity;
 import kg.equeue.backend.roles.RoleEntity;
+import kg.equeue.backend.users.UserDepartmentScopeRepository;
 import kg.equeue.backend.users.UserEntity;
 import kg.equeue.backend.users.UserRepository;
 import kg.equeue.backend.users.UserStatus;
@@ -33,6 +34,7 @@ public class AuthService {
     private final UserRepository userRepository;
     private final RefreshTokenRepository refreshTokenRepository;
     private final LoginAuditLogRepository loginAuditLogRepository;
+    private final UserDepartmentScopeRepository departmentScopeRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
     private final SecurityProperties securityProperties;
@@ -41,12 +43,14 @@ public class AuthService {
     public AuthService(UserRepository userRepository,
                        RefreshTokenRepository refreshTokenRepository,
                        LoginAuditLogRepository loginAuditLogRepository,
+                       UserDepartmentScopeRepository departmentScopeRepository,
                        PasswordEncoder passwordEncoder,
                        JwtService jwtService,
                        SecurityProperties securityProperties) {
         this.userRepository = userRepository;
         this.refreshTokenRepository = refreshTokenRepository;
         this.loginAuditLogRepository = loginAuditLogRepository;
+        this.departmentScopeRepository = departmentScopeRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
         this.securityProperties = securityProperties;
@@ -111,6 +115,7 @@ public class AuthService {
                 user.getId(),
                 user.getUsername(),
                 user.getFullName(),
+                departmentScopeRepository.primaryDepartmentId(user.getId()),
                 user.getStatus(),
                 roleCodes(user),
                 permissionCodes(user)
@@ -193,4 +198,3 @@ public class AuthService {
     private record RefreshTokenPair(String rawToken, String hash) {
     }
 }
-
