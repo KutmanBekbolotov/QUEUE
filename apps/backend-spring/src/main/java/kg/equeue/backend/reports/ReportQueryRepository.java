@@ -1,5 +1,6 @@
 package kg.equeue.backend.reports;
 
+import java.sql.Timestamp;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
@@ -747,7 +748,7 @@ public class ReportQueryRepository {
                   MAX(ir.created_at) AS last_request_at
                 FROM integration_requests ir
                 WHERE ir.created_at >= :fromInstant AND ir.created_at < :toInstant
-                  AND (:source IS NULL OR ir.client_code = :source)
+                  AND (CAST(:source AS varchar) IS NULL OR ir.client_code = :source)
                 GROUP BY ir.client_code
                 ORDER BY ir.client_code
                 """, params, (rs, rowNum) -> new IntegrationReportRow(
@@ -767,8 +768,8 @@ public class ReportQueryRepository {
         MapSqlParameterSource params = new MapSqlParameterSource();
         params.addValue("dateFrom", filter.getDateFrom());
         params.addValue("dateTo", filter.getDateTo());
-        params.addValue("fromInstant", filter.getDateFrom().atStartOfDay().toInstant(ZoneOffset.UTC));
-        params.addValue("toInstant", filter.getDateTo().plusDays(1).atStartOfDay().toInstant(ZoneOffset.UTC));
+        params.addValue("fromInstant", Timestamp.from(filter.getDateFrom().atStartOfDay().toInstant(ZoneOffset.UTC)));
+        params.addValue("toInstant", Timestamp.from(filter.getDateTo().plusDays(1).atStartOfDay().toInstant(ZoneOffset.UTC)));
         params.addValue("regionId", filter.getRegionId());
         params.addValue("departmentId", filter.getDepartmentId());
         params.addValue("employeeId", filter.getEmployeeId());
@@ -795,10 +796,10 @@ public class ReportQueryRepository {
         clauses.add("(:windowId::uuid IS NULL OR " + ticketAlias + ".current_window_id = :windowId)");
         clauses.add("(:serviceCategoryId::uuid IS NULL OR " + serviceAlias + ".category_id = :serviceCategoryId)");
         clauses.add("(:serviceId::uuid IS NULL OR " + ticketAlias + ".service_id = :serviceId)");
-        clauses.add("(:source IS NULL OR " + ticketAlias + ".source = :source)");
-        clauses.add("(:ticketStatus IS NULL OR " + ticketAlias + ".status = :ticketStatus)");
+        clauses.add("(CAST(:source AS varchar) IS NULL OR " + ticketAlias + ".source = :source)");
+        clauses.add("(CAST(:ticketStatus AS varchar) IS NULL OR " + ticketAlias + ".status = :ticketStatus)");
         clauses.add("(:cancellationReasonId::uuid IS NULL OR " + ticketAlias + ".cancellation_reason_id = :cancellationReasonId)");
-        return String.join(" AND ", clauses);
+        return whereClauses(clauses);
     }
 
     private String ticketWhereWithoutDepartment(String ticketAlias, String serviceAlias, ReportCriteria criteria) {
@@ -809,10 +810,10 @@ public class ReportQueryRepository {
         clauses.add("(:windowId::uuid IS NULL OR " + ticketAlias + ".current_window_id = :windowId)");
         clauses.add("(:serviceCategoryId::uuid IS NULL OR " + serviceAlias + ".category_id = :serviceCategoryId)");
         clauses.add("(:serviceId::uuid IS NULL OR " + ticketAlias + ".service_id = :serviceId)");
-        clauses.add("(:source IS NULL OR " + ticketAlias + ".source = :source)");
-        clauses.add("(:ticketStatus IS NULL OR " + ticketAlias + ".status = :ticketStatus)");
+        clauses.add("(CAST(:source AS varchar) IS NULL OR " + ticketAlias + ".source = :source)");
+        clauses.add("(CAST(:ticketStatus AS varchar) IS NULL OR " + ticketAlias + ".status = :ticketStatus)");
         clauses.add("(:cancellationReasonId::uuid IS NULL OR " + ticketAlias + ".cancellation_reason_id = :cancellationReasonId)");
-        return String.join(" AND ", clauses);
+        return whereClauses(clauses);
     }
 
     private String ticketWhereWithKnownService(String ticketAlias, String departmentAlias, ReportCriteria criteria) {
@@ -823,10 +824,10 @@ public class ReportQueryRepository {
         clauses.add("(:regionId::uuid IS NULL OR " + departmentAlias + ".region_id = :regionId)");
         clauses.add("(:employeeId::uuid IS NULL OR " + ticketAlias + ".current_operator_id = :employeeId)");
         clauses.add("(:windowId::uuid IS NULL OR " + ticketAlias + ".current_window_id = :windowId)");
-        clauses.add("(:source IS NULL OR " + ticketAlias + ".source = :source)");
-        clauses.add("(:ticketStatus IS NULL OR " + ticketAlias + ".status = :ticketStatus)");
+        clauses.add("(CAST(:source AS varchar) IS NULL OR " + ticketAlias + ".source = :source)");
+        clauses.add("(CAST(:ticketStatus AS varchar) IS NULL OR " + ticketAlias + ".status = :ticketStatus)");
         clauses.add("(:cancellationReasonId::uuid IS NULL OR " + ticketAlias + ".cancellation_reason_id = :cancellationReasonId)");
-        return String.join(" AND ", clauses);
+        return whereClauses(clauses);
     }
 
     private String bookingWhere(String bookingAlias, String departmentAlias, String serviceAlias, ReportCriteria criteria) {
@@ -836,10 +837,10 @@ public class ReportQueryRepository {
         clauses.add("(:regionId::uuid IS NULL OR " + departmentAlias + ".region_id = :regionId)");
         clauses.add("(:serviceCategoryId::uuid IS NULL OR " + serviceAlias + ".category_id = :serviceCategoryId)");
         clauses.add("(:serviceId::uuid IS NULL OR " + bookingAlias + ".service_id = :serviceId)");
-        clauses.add("(:source IS NULL OR COALESCE(" + bookingAlias + ".external_source, " + bookingAlias + ".source) = :source)");
-        clauses.add("(:bookingStatus IS NULL OR " + bookingAlias + ".status = :bookingStatus)");
+        clauses.add("(CAST(:source AS varchar) IS NULL OR COALESCE(" + bookingAlias + ".external_source, " + bookingAlias + ".source) = :source)");
+        clauses.add("(CAST(:bookingStatus AS varchar) IS NULL OR " + bookingAlias + ".status = :bookingStatus)");
         clauses.add("(:cancellationReasonId::uuid IS NULL OR " + bookingAlias + ".cancellation_reason_id = :cancellationReasonId)");
-        return String.join(" AND ", clauses);
+        return whereClauses(clauses);
     }
 
     private String bookingWhereWithoutDepartment(String bookingAlias, String serviceAlias, ReportCriteria criteria) {
@@ -847,10 +848,10 @@ public class ReportQueryRepository {
         clauses.add(bookingAlias + ".booking_date BETWEEN :dateFrom AND :dateTo");
         clauses.add("(:serviceCategoryId::uuid IS NULL OR " + serviceAlias + ".category_id = :serviceCategoryId)");
         clauses.add("(:serviceId::uuid IS NULL OR " + bookingAlias + ".service_id = :serviceId)");
-        clauses.add("(:source IS NULL OR COALESCE(" + bookingAlias + ".external_source, " + bookingAlias + ".source) = :source)");
-        clauses.add("(:bookingStatus IS NULL OR " + bookingAlias + ".status = :bookingStatus)");
+        clauses.add("(CAST(:source AS varchar) IS NULL OR COALESCE(" + bookingAlias + ".external_source, " + bookingAlias + ".source) = :source)");
+        clauses.add("(CAST(:bookingStatus AS varchar) IS NULL OR " + bookingAlias + ".status = :bookingStatus)");
         clauses.add("(:cancellationReasonId::uuid IS NULL OR " + bookingAlias + ".cancellation_reason_id = :cancellationReasonId)");
-        return String.join(" AND ", clauses);
+        return whereClauses(clauses);
     }
 
     private String bookingWhereWithKnownService(String bookingAlias, String departmentAlias, ReportCriteria criteria) {
@@ -858,17 +859,21 @@ public class ReportQueryRepository {
         clauses.add(bookingAlias + ".booking_date BETWEEN :dateFrom AND :dateTo");
         addDepartmentScope(clauses, bookingAlias + ".department_id", criteria);
         clauses.add("(:regionId::uuid IS NULL OR " + departmentAlias + ".region_id = :regionId)");
-        clauses.add("(:source IS NULL OR COALESCE(" + bookingAlias + ".external_source, " + bookingAlias + ".source) = :source)");
-        clauses.add("(:bookingStatus IS NULL OR " + bookingAlias + ".status = :bookingStatus)");
+        clauses.add("(CAST(:source AS varchar) IS NULL OR COALESCE(" + bookingAlias + ".external_source, " + bookingAlias + ".source) = :source)");
+        clauses.add("(CAST(:bookingStatus AS varchar) IS NULL OR " + bookingAlias + ".status = :bookingStatus)");
         clauses.add("(:cancellationReasonId::uuid IS NULL OR " + bookingAlias + ".cancellation_reason_id = :cancellationReasonId)");
-        return String.join(" AND ", clauses);
+        return whereClauses(clauses);
     }
 
     private String departmentWhere(String departmentAlias, ReportCriteria criteria) {
         List<String> clauses = new ArrayList<>();
         addDepartmentScope(clauses, departmentAlias + ".id", criteria);
         clauses.add("(:regionId::uuid IS NULL OR " + departmentAlias + ".region_id = :regionId)");
-        return String.join(" AND ", clauses);
+        return whereClauses(clauses);
+    }
+
+    private String whereClauses(List<String> clauses) {
+        return " " + String.join(" AND ", clauses) + " ";
     }
 
     private String departmentScopeSql(String departmentAlias, ReportCriteria criteria) {
@@ -910,7 +915,7 @@ public class ReportQueryRepository {
                   FROM tickets t
                   JOIN departments d ON d.id = t.department_id
                   JOIN services s ON s.id = t.service_id
-                  WHERE """ + startExpression + " IS NOT NULL AND " + endExpression + " IS NOT NULL AND " + ticketWhere("t", "d", "s", criteria) + """
+                  WHERE""" + " " + startExpression + " IS NOT NULL AND " + endExpression + " IS NOT NULL AND " + ticketWhere("t", "d", "s", criteria) + """
                 )
                 SELECT AVG(seconds) AS average_seconds,
                        percentile_cont(0.5) WITHIN GROUP (ORDER BY seconds) AS median_seconds,
@@ -930,7 +935,7 @@ public class ReportQueryRepository {
                   FROM tickets t
                   JOIN departments d ON d.id = t.department_id
                   JOIN services s ON s.id = t.service_id
-                  WHERE """ + startExpression + " IS NOT NULL AND " + endExpression + " IS NOT NULL AND " + ticketWhere("t", "d", "s", criteria) + """
+                  WHERE""" + " " + startExpression + " IS NOT NULL AND " + endExpression + " IS NOT NULL AND " + ticketWhere("t", "d", "s", criteria) + """
                 ),
                 buckets AS (
                   SELECT CASE
