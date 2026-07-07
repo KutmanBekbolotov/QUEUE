@@ -7,6 +7,7 @@ import java.util.Set;
 import java.util.UUID;
 import kg.equeue.backend.audit.AuditService;
 import kg.equeue.backend.common.ApiException;
+import kg.equeue.backend.common.CurrentUser;
 import kg.equeue.backend.roles.RoleEntity;
 import kg.equeue.backend.roles.RoleRepository;
 import kg.equeue.backend.users.dto.AssignUserRolesRequest;
@@ -80,6 +81,9 @@ public class UserService {
     public UserResponse updateStatus(UUID id, UpdateUserStatusRequest request, HttpServletRequest httpRequest) {
         UserEntity user = userRepository.findDetailedById(id)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "USER_NOT_FOUND", "User was not found"));
+        if (id.equals(CurrentUser.idOrNull()) && request.status() != UserStatus.ACTIVE) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "CANNOT_DEACTIVATE_SELF", "Current user cannot deactivate own account");
+        }
         user.setStatus(request.status());
         user.setTokenVersion(user.getTokenVersion() + 1);
         UserEntity saved = userRepository.save(user);
