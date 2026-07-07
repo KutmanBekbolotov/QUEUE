@@ -192,6 +192,38 @@ public class DirectoryService {
         return departmentResponse(saved);
     }
 
+    @Transactional
+    public void deleteDepartment(UUID id, HttpServletRequest httpRequest) {
+        DepartmentEntity entity = departmentOrThrow(id);
+        departmentScopeService.requireDepartmentAccess(id);
+        entity.setActive(false);
+        entity.setClosed(true);
+        departmentRepository.save(entity);
+
+        List<OfficeRoomEntity> rooms = officeRoomRepository.findByDepartmentIdOrderByCodeAsc(id);
+        rooms.forEach(room -> room.setActive(false));
+        officeRoomRepository.saveAll(rooms);
+
+        List<HallEntity> halls = hallRepository.findByDepartmentIdOrderByCodeAsc(id);
+        halls.forEach(hall -> hall.setActive(false));
+        hallRepository.saveAll(halls);
+
+        List<ServiceWindowEntity> windows = serviceWindowRepository.findByDepartmentIdOrderByCodeAsc(id);
+        windows.forEach(this::deactivateWindow);
+        serviceWindowRepository.saveAll(windows);
+        deactivateWindowAssignments(windows);
+
+        List<DepartmentServiceEntity> departmentServices = departmentServiceRepository.findByDepartmentId(id);
+        departmentServices.forEach(service -> service.setActive(false));
+        departmentServiceRepository.saveAll(departmentServices);
+
+        List<EmployeeServiceAssignmentEntity> employeeServices = employeeServiceAssignmentRepository.findByDepartmentId(id);
+        employeeServices.forEach(assignment -> assignment.setActive(false));
+        employeeServiceAssignmentRepository.saveAll(employeeServices);
+
+        auditService.write("DEPARTMENT_DELETE", "DEPARTMENT", entity.getId(), simpleJson("active", "false"), httpRequest);
+    }
+
     @Transactional(readOnly = true)
     public List<OfficeRoomResponse> rooms(UUID departmentId) {
         departmentScopeService.requireDepartmentAccess(departmentId);
@@ -258,6 +290,21 @@ public class DirectoryService {
         return hallResponse(saved);
     }
 
+    @Transactional
+    public void deleteHall(UUID id, HttpServletRequest httpRequest) {
+        HallEntity entity = hallOrThrow(id);
+        departmentScopeService.requireDepartmentAccess(entity.getDepartmentId());
+        entity.setActive(false);
+        hallRepository.save(entity);
+
+        List<ServiceWindowEntity> windows = serviceWindowRepository.findByHallIdOrderByCodeAsc(id);
+        windows.forEach(this::deactivateWindow);
+        serviceWindowRepository.saveAll(windows);
+        deactivateWindowAssignments(windows);
+
+        auditService.write("HALL_DELETE", "HALL", entity.getId(), simpleJson("active", "false"), httpRequest);
+    }
+
     @Transactional(readOnly = true)
     public List<WindowResponse> windows() {
         return serviceWindowRepository.findAllByOrderByDepartmentIdAscCodeAsc().stream()
@@ -315,6 +362,16 @@ public class DirectoryService {
         ServiceWindowEntity saved = serviceWindowRepository.save(entity);
         auditService.write("WINDOW_STATUS_UPDATE", "WINDOW", saved.getId(), simpleJson("status", saved.getStatus().name()), httpRequest);
         return windowResponse(saved);
+    }
+
+    @Transactional
+    public void deleteWindow(UUID id, HttpServletRequest httpRequest) {
+        ServiceWindowEntity entity = windowOrThrow(id);
+        departmentScopeService.requireDepartmentAccess(entity.getDepartmentId());
+        deactivateWindow(entity);
+        ServiceWindowEntity saved = serviceWindowRepository.save(entity);
+        deactivateWindowAssignments(List.of(saved));
+        auditService.write("WINDOW_DELETE", "WINDOW", saved.getId(), simpleJson("active", "false"), httpRequest);
     }
 
     @Transactional
@@ -431,6 +488,23 @@ public class DirectoryService {
         return serviceResponse(saved);
     }
 
+    @Transactional
+    public void deleteService(UUID id, HttpServletRequest httpRequest) {
+        QueueServiceEntity entity = serviceOrThrow(id);
+        entity.setActive(false);
+        queueServiceRepository.save(entity);
+
+        List<DepartmentServiceEntity> departmentServices = departmentServiceRepository.findByServiceId(id);
+        departmentServices.forEach(service -> service.setActive(false));
+        departmentServiceRepository.saveAll(departmentServices);
+
+        List<EmployeeServiceAssignmentEntity> employeeServices = employeeServiceAssignmentRepository.findByServiceId(id);
+        employeeServices.forEach(assignment -> assignment.setActive(false));
+        employeeServiceAssignmentRepository.saveAll(employeeServices);
+
+        auditService.write("SERVICE_DELETE", "SERVICE", entity.getId(), simpleJson("active", "false"), httpRequest);
+    }
+
     @Transactional(readOnly = true)
     public List<DepartmentServiceResponse> departmentServices(UUID departmentId) {
         departmentScopeService.requireDepartmentAccess(departmentId);
@@ -533,6 +607,18 @@ public class DirectoryService {
             entity.setQrEnabled(request.qrEnabled());
         }
         entity.setDailyLimit(request.dailyLimit());
+    }
+
+    private void deactivateWindow(ServiceWindowEntity window) {
+        window.setActive(false);
+    }
+
+    private void deactivateWindowAssignments(List<ServiceWindowEntity> windows) {
+        windows.forEach(window -> {
+            List<EmployeeWindowAssignmentEntity> assignments = employeeWindowAssignmentRepository.findByServiceWindowId(window.getId());
+            assignments.forEach(assignment -> assignment.setActive(false));
+            employeeWindowAssignmentRepository.saveAll(assignments);
+        });
     }
 
     private void validateRoomBelongsToDepartment(UUID roomId, UUID departmentId) {

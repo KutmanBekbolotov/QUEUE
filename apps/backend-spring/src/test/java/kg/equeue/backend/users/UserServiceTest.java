@@ -70,6 +70,45 @@ class UserServiceTest {
     }
 
     @Test
+    void deleteDisablesUserAndInvalidatesTokens() {
+        UUID userId = UUID.randomUUID();
+        UserEntity user = new UserEntity();
+        user.setId(userId);
+        user.setUsername("operator");
+        user.setStatus(UserStatus.ACTIVE);
+        user.setTokenVersion(2);
+        when(userRepository.findDetailedById(userId)).thenReturn(Optional.of(user));
+        when(userRepository.save(user)).thenReturn(user);
+
+        userService.delete(userId, null);
+
+        assertThat(user.getStatus()).isEqualTo(UserStatus.DISABLED);
+        assertThat(user.getTokenVersion()).isEqualTo(3);
+        verify(userRepository).save(user);
+    }
+
+    @Test
+    void currentUserCannotDeleteOwnAccount() {
+        UUID userId = UUID.randomUUID();
+        UserEntity user = new UserEntity();
+        user.setId(userId);
+        user.setUsername("admin");
+        user.setStatus(UserStatus.ACTIVE);
+        when(userRepository.findDetailedById(userId)).thenReturn(Optional.of(user));
+        SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken(
+                new AuthenticatedPrincipal(userId, "admin", 1, UserStatus.ACTIVE, List.of()),
+                null,
+                List.of()
+        ));
+
+        assertThatThrownBy(() -> userService.delete(userId, null))
+                .isInstanceOf(ApiException.class)
+                .hasMessage("Current user cannot deactivate own account");
+
+        verify(userRepository, never()).save(user);
+    }
+
+    @Test
     void updateChangesProfileRolesPasswordAndDepartmentScope() {
         UUID userId = UUID.randomUUID();
         UUID departmentId = UUID.randomUUID();

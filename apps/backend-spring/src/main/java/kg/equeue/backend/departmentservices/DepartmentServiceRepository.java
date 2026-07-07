@@ -7,7 +7,8 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface DepartmentServiceRepository extends JpaRepository<DepartmentServiceEntity, UUID> {
     List<DepartmentServiceEntity> findByDepartmentIdAndActiveTrueOrderByServiceIdAsc(UUID departmentId);
+    List<DepartmentServiceEntity> findByDepartmentId(UUID departmentId);
+    List<DepartmentServiceEntity> findByServiceId(UUID serviceId);
     Optional<DepartmentServiceEntity> findByDepartmentIdAndServiceId(UUID departmentId, UUID serviceId);
     boolean existsByDepartmentIdAndServiceIdAndActiveTrue(UUID departmentId, UUID serviceId);
 }
-

@@ -13,6 +13,8 @@ public interface ServiceWindowRepository extends JpaRepository<ServiceWindowEnti
 
     List<ServiceWindowEntity> findByDepartmentIdOrderByCodeAsc(UUID departmentId);
 
+    List<ServiceWindowEntity> findByHallIdOrderByCodeAsc(UUID hallId);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select w from ServiceWindowEntity w where w.id = :id")
     java.util.Optional<ServiceWindowEntity> findWithLockById(UUID id);

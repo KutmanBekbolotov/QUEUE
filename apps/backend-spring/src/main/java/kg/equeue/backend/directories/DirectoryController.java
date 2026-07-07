@@ -112,6 +112,13 @@ public class DirectoryController {
         return directoryService.updateDepartmentStatus(id, request, httpRequest);
     }
 
+    @DeleteMapping("/departments/{id}")
+    @ResponseStatus(NO_CONTENT)
+    @PreAuthorize("hasAuthority('DEPARTMENT_UPDATE') or hasAuthority('DEPARTMENT_CLOSE')")
+    void deleteDepartment(@PathVariable UUID id, HttpServletRequest httpRequest) {
+        directoryService.deleteDepartment(id, httpRequest);
+    }
+
     @GetMapping("/departments/{departmentId}/rooms")
     @PreAuthorize("hasAuthority('DEPARTMENT_READ')")
     List<OfficeRoomResponse> rooms(@PathVariable UUID departmentId) {
@@ -148,6 +155,13 @@ public class DirectoryController {
         return directoryService.updateHall(id, request, httpRequest);
     }
 
+    @DeleteMapping("/halls/{id}")
+    @ResponseStatus(NO_CONTENT)
+    @PreAuthorize("hasAuthority('DEPARTMENT_UPDATE')")
+    void deleteHall(@PathVariable UUID id, HttpServletRequest httpRequest) {
+        directoryService.deleteHall(id, httpRequest);
+    }
+
     @GetMapping("/departments/{departmentId}/windows")
     @PreAuthorize("hasAuthority('WINDOW_READ')")
     List<WindowResponse> windows(@PathVariable UUID departmentId) {
@@ -182,6 +196,13 @@ public class DirectoryController {
     @PreAuthorize("hasAuthority('WINDOW_UPDATE')")
     WindowResponse updateWindowStatus(@PathVariable UUID id, @Valid @RequestBody WindowStatusRequest request, HttpServletRequest httpRequest) {
         return directoryService.updateWindowStatus(id, request, httpRequest);
+    }
+
+    @DeleteMapping("/windows/{id}")
+    @ResponseStatus(NO_CONTENT)
+    @PreAuthorize("hasAuthority('WINDOW_UPDATE')")
+    void deleteWindow(@PathVariable UUID id, HttpServletRequest httpRequest) {
+        directoryService.deleteWindow(id, httpRequest);
     }
 
     @PostMapping("/windows/{id}/assign-employee")
@@ -258,6 +279,13 @@ public class DirectoryController {
     @PreAuthorize("hasAuthority('SERVICE_UPDATE')")
     ServiceResponse updateServiceStatus(@PathVariable UUID id, @Valid @RequestBody ActiveStatusRequest request, HttpServletRequest httpRequest) {
         return directoryService.updateServiceStatus(id, request, httpRequest);
+    }
+
+    @DeleteMapping("/services/{id}")
+    @ResponseStatus(NO_CONTENT)
+    @PreAuthorize("hasAuthority('SERVICE_UPDATE')")
+    void deleteService(@PathVariable UUID id, HttpServletRequest httpRequest) {
+        directoryService.deleteService(id, httpRequest);
     }
 
     @GetMapping("/departments/{departmentId}/services")

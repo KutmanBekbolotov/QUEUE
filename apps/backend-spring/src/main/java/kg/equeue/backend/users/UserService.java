@@ -148,6 +148,19 @@ public class UserService {
     }
 
     @Transactional
+    public void delete(UUID id, HttpServletRequest httpRequest) {
+        UserEntity user = userRepository.findDetailedById(id)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "USER_NOT_FOUND", "User was not found"));
+        if (id.equals(CurrentUser.idOrNull())) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "CANNOT_DEACTIVATE_SELF", "Current user cannot deactivate own account");
+        }
+        user.setStatus(UserStatus.DISABLED);
+        user.setTokenVersion(user.getTokenVersion() + 1);
+        UserEntity saved = userRepository.save(user);
+        auditService.write("USER_DELETE", "USER", saved.getId(), "{\"status\":\"DISABLED\"}", httpRequest);
+    }
+
+    @Transactional
     public UserResponse assignRoles(UUID id, AssignUserRolesRequest request, HttpServletRequest httpRequest) {
         UserEntity user = userRepository.findDetailedById(id)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "USER_NOT_FOUND", "User was not found"));
