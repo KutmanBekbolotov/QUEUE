@@ -32,9 +32,9 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
@@ -70,7 +70,7 @@ public class DirectoryController {
         return directoryService.region(id);
     }
 
-    @PutMapping("/regions/{id}")
+    @RequestMapping(value = "/regions/{id}", method = {RequestMethod.PUT, RequestMethod.PATCH})
     @PreAuthorize("hasAuthority('REGION_UPDATE')")
     RegionResponse updateRegion(@PathVariable UUID id, @Valid @RequestBody RegionRequest request, HttpServletRequest httpRequest) {
         return directoryService.updateRegion(id, request, httpRequest);
@@ -100,7 +100,7 @@ public class DirectoryController {
         return directoryService.department(id);
     }
 
-    @PutMapping("/departments/{id}")
+    @RequestMapping(value = "/departments/{id}", method = {RequestMethod.PUT, RequestMethod.PATCH})
     @PreAuthorize("hasAuthority('DEPARTMENT_UPDATE')")
     DepartmentResponse updateDepartment(@PathVariable UUID id, @Valid @RequestBody DepartmentRequest request, HttpServletRequest httpRequest) {
         return directoryService.updateDepartment(id, request, httpRequest);
@@ -124,7 +124,7 @@ public class DirectoryController {
         return directoryService.createRoom(departmentId, request, httpRequest);
     }
 
-    @PutMapping("/rooms/{id}")
+    @RequestMapping(value = "/rooms/{id}", method = {RequestMethod.PUT, RequestMethod.PATCH})
     @PreAuthorize("hasAuthority('DEPARTMENT_UPDATE')")
     OfficeRoomResponse updateRoom(@PathVariable UUID id, @Valid @RequestBody OfficeRoomRequest request, HttpServletRequest httpRequest) {
         return directoryService.updateRoom(id, request, httpRequest);
@@ -142,7 +142,7 @@ public class DirectoryController {
         return directoryService.createHall(departmentId, request, httpRequest);
     }
 
-    @PutMapping("/halls/{id}")
+    @RequestMapping(value = "/halls/{id}", method = {RequestMethod.PUT, RequestMethod.PATCH})
     @PreAuthorize("hasAuthority('DEPARTMENT_UPDATE')")
     HallResponse updateHall(@PathVariable UUID id, @Valid @RequestBody HallRequest request, HttpServletRequest httpRequest) {
         return directoryService.updateHall(id, request, httpRequest);
@@ -172,7 +172,7 @@ public class DirectoryController {
         return directoryService.window(id);
     }
 
-    @PutMapping("/windows/{id}")
+    @RequestMapping(value = "/windows/{id}", method = {RequestMethod.PUT, RequestMethod.PATCH})
     @PreAuthorize("hasAuthority('WINDOW_UPDATE')")
     WindowResponse updateWindow(@PathVariable UUID id, @Valid @RequestBody WindowRequest request, HttpServletRequest httpRequest) {
         return directoryService.updateWindow(id, request, httpRequest);
@@ -222,7 +222,7 @@ public class DirectoryController {
         return directoryService.serviceCategory(id);
     }
 
-    @PutMapping("/service-categories/{id}")
+    @RequestMapping(value = "/service-categories/{id}", method = {RequestMethod.PUT, RequestMethod.PATCH})
     @PreAuthorize("hasAuthority('SERVICE_UPDATE')")
     ServiceCategoryResponse updateServiceCategory(@PathVariable UUID id,
                                                   @Valid @RequestBody ServiceCategoryRequest request,
@@ -248,7 +248,7 @@ public class DirectoryController {
         return directoryService.service(id);
     }
 
-    @PutMapping("/services/{id}")
+    @RequestMapping(value = "/services/{id}", method = {RequestMethod.PUT, RequestMethod.PATCH})
     @PreAuthorize("hasAuthority('SERVICE_UPDATE')")
     ServiceResponse updateService(@PathVariable UUID id, @Valid @RequestBody ServiceRequest request, HttpServletRequest httpRequest) {
         return directoryService.updateService(id, request, httpRequest);
