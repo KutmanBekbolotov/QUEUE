@@ -288,12 +288,14 @@ TICKET_AUDIT_COUNT="$(psql_scalar "SELECT count(*) FROM audit_logs WHERE entity_
 [[ "$TICKET_EVENT_COUNT" -ge 5 && "$TICKET_AUDIT_COUNT" -ge 1 ]] || fail "ticket events/audit rows missing"
 pass "ticket_events and audit_logs are created"
 
-TERMINAL_TOKEN="terminal-smoke-$RUN_ID"
-TV_TOKEN="tv-smoke-$RUN_ID"
-TERMINAL_HASH="$(hash_value "$TERMINAL_TOKEN")"
-TV_HASH="$(hash_value "$TV_TOKEN")"
-TERMINAL_ID="$(psql_scalar "INSERT INTO terminals (department_id, code, name, token_hash) VALUES ('$DEPARTMENT_ID', 'TERM_$RUN_ID', 'Smoke Terminal', '$TERMINAL_HASH') RETURNING id;")"
-psql_scalar "INSERT INTO tv_displays (department_id, hall_id, code, name, token_hash) VALUES ('$DEPARTMENT_ID', '$HALL_ID', 'TV_$RUN_ID', 'Smoke TV', '$TV_HASH') RETURNING id;" >/dev/null
+TERMINAL_DEVICE="$(auth_post /api/v1/devices/terminals "{\"departmentId\":\"$DEPARTMENT_ID\",\"code\":\"TERM_$RUN_ID\",\"name\":\"Smoke Terminal\"}")"
+TERMINAL_ID="$(jq -r '.device.id' <<<"$TERMINAL_DEVICE")"
+TERMINAL_TOKEN="$(jq -r '.deviceToken' <<<"$TERMINAL_DEVICE")"
+TV_DEVICE="$(auth_post /api/v1/devices/tv-displays "{\"departmentId\":\"$DEPARTMENT_ID\",\"hallId\":\"$HALL_ID\",\"code\":\"TV_$RUN_ID\",\"name\":\"Smoke TV\"}")"
+TV_DISPLAY_ID="$(jq -r '.device.id' <<<"$TV_DEVICE")"
+TV_TOKEN="$(jq -r '.deviceToken' <<<"$TV_DEVICE")"
+[[ "$TERMINAL_TOKEN" != "null" && "$TV_TOKEN" != "null" ]] || fail "device provisioning token missing"
+pass "terminal and TV provisioning returns one-time device tokens"
 
 TERMINAL_CONFIG="$(curl -fsS "$API_BASE/api/v1/terminal/$TERMINAL_ID/config" -H "X-Device-Token: $TERMINAL_TOKEN")"
 require_json_field "$TERMINAL_CONFIG" --arg service "$SERVICE_ID" '(.serviceIds | index($service))' "terminal config is department-bound"
@@ -310,10 +312,10 @@ expect_code 403 "terminal cannot create ticket for another department" \
   -H 'Content-Type: application/json' \
   -d "{\"departmentId\":\"00000000-0000-0000-0000-000000000001\",\"serviceId\":\"$SERVICE_ID\"}"
 
-TV_SNAPSHOT="$(curl -fsS "$API_BASE/api/v1/tv/$DEPARTMENT_ID/snapshot" -H "X-Device-Token: $TV_TOKEN")"
+TV_SNAPSHOT="$(curl -fsS "$API_BASE/api/v1/tv/displays/$TV_DISPLAY_ID/snapshot" -H "X-Device-Token: $TV_TOKEN")"
 require_json_field "$TV_SNAPSHOT" --arg ticket "$TV_TICKET_ID" '(.tickets | map(.id) | index($ticket))' "TV snapshot returns called tickets"
 TV_SSE_OUT="$TMP_DIR/tv-sse.txt"
-if timeout 3 curl -fsS -N "$API_BASE/api/v1/tv/$DEPARTMENT_ID/stream" \
+if timeout 3 curl -fsS -N "$API_BASE/api/v1/tv/displays/$TV_DISPLAY_ID/stream" \
   -H "X-Device-Token: $TV_TOKEN" >"$TV_SSE_OUT"; then
   :
 else

@@ -72,12 +72,14 @@ Swagger/OpenAPI:
 
 Токен устройства нельзя хранить в обычном пользовательском localStorage. Для киоск-устройств он должен поставляться через защищенную конфигурацию устройства или оболочку приложения.
 
+Первичную конфигурацию выполняет администратор через `POST /api/v1/devices/terminals` или `POST /api/v1/devices/tv-displays`. Ответ содержит `device.id` и одноразово показываемый `deviceToken`. Устройство сохраняет оба значения и не вызывает `/api/v1/auth/login`.
+
 ### 3.3. ТВ-экран
 
 TV UI обращается в Spring:
 
-- `GET /api/v1/tv/{departmentId}/snapshot`
-- `GET /api/v1/tv/{departmentId}/stream`
+- `GET /api/v1/tv/displays/{tvDisplayId}/snapshot`
+- `GET /api/v1/tv/displays/{tvDisplayId}/stream`
 
 Аутентификация такая же, как у терминала:
 
@@ -270,6 +272,8 @@ Response:
 - `INTEGRATION_SERVICE`
 - `TERMINAL_DEVICE`
 - `TV_DEVICE`
+
+`TERMINAL_DEVICE` и `TV_DEVICE` — зарезервированные legacy-коды. Их нельзя назначать записям пользователей или использовать для login; устройства создаются через `/api/v1/devices/*`.
 
 ### 6.2. Основные permission-группы
 
@@ -623,8 +627,8 @@ UI-требования:
 
 Endpoints:
 
-- `GET /api/v1/tv/{departmentId}/snapshot`
-- `GET /api/v1/tv/{departmentId}/stream`
+- `GET /api/v1/tv/displays/{tvDisplayId}/snapshot`
+- `GET /api/v1/tv/displays/{tvDisplayId}/stream`
 
 Response snapshot:
 
@@ -1040,5 +1044,4 @@ type PageResponse<T> = {
 1. В текущем NestJS коде отсутствуют `/external/zenoss/reports/*`, хотя они описаны в `docs/phase-4-reports.md` и ожидаются тестом. Нужно либо реализовать эти routes, либо убрать ожидание из внешнего фронта/BFF.
 2. В текущем Spring коде нет public controller для `/api/v1/integration-mappings/resolve`, хотя CRM middleware вызывает его при работе с `departmentCode/serviceCode`. До доработки использовать UUID.
 3. Native `EventSource` не поддерживает `Authorization` header. Для operator SSE нужен polyfill, BFF или backend-решение по безопасной авторизации stream.
-4. Spring CORS headers сейчас не включают `X-Device-Token`; terminal/TV browser clients через CORS могут потребовать расширения backend CORS конфигурации или работу через same-origin gateway/device shell.
-5. Управление терминалами и ТВ-устройствами имеет permissions в RBAC, но CRUD endpoints для них в текущем коде не представлены. Если админка должна создавать устройства и выдавать токены, требуется backend-доработка.
+4. Native `EventSource` не позволяет установить `X-Device-Token`. Для TV SSE нужен EventSource polyfill/fetch-stream либо same-origin device shell, который добавляет заголовок.

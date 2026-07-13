@@ -1,16 +1,25 @@
 package kg.equeue.backend.devices;
 
 import io.swagger.v3.oas.annotations.tags.Tag;
-import java.time.Instant;
-import java.util.Comparator;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.Valid;
 import java.util.List;
 import java.util.UUID;
-import kg.equeue.backend.terminals.TerminalEntity;
-import kg.equeue.backend.terminals.TerminalRepository;
-import kg.equeue.backend.tvdisplays.TvDisplayEntity;
-import kg.equeue.backend.tvdisplays.TvDisplayRepository;
+import kg.equeue.backend.devices.DeviceDtos.CreateTerminalRequest;
+import kg.equeue.backend.devices.DeviceDtos.CreateTvDisplayRequest;
+import kg.equeue.backend.devices.DeviceDtos.DeviceResponse;
+import kg.equeue.backend.devices.DeviceDtos.ProvisionedDeviceResponse;
+import kg.equeue.backend.devices.DeviceDtos.UpdateTerminalRequest;
+import kg.equeue.backend.devices.DeviceDtos.UpdateTvDisplayRequest;
+import org.springframework.http.CacheControl;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -19,63 +28,64 @@ import org.springframework.web.bind.annotation.RestController;
 @Tag(name = "Devices")
 public class DeviceController {
 
-    private final TerminalRepository terminalRepository;
-    private final TvDisplayRepository tvDisplayRepository;
+    private final DeviceManagementService deviceManagementService;
 
-    public DeviceController(TerminalRepository terminalRepository, TvDisplayRepository tvDisplayRepository) {
-        this.terminalRepository = terminalRepository;
-        this.tvDisplayRepository = tvDisplayRepository;
+    public DeviceController(DeviceManagementService deviceManagementService) {
+        this.deviceManagementService = deviceManagementService;
     }
 
     @GetMapping
     @PreAuthorize("hasAuthority('TERMINAL_READ') or hasAuthority('TV_READ')")
     List<DeviceResponse> devices() {
-        List<DeviceResponse> terminals = terminalRepository.findAll().stream()
-                .map(this::terminalResponse)
-                .toList();
-        List<DeviceResponse> tvDisplays = tvDisplayRepository.findAll().stream()
-                .map(this::tvDisplayResponse)
-                .toList();
-        return java.util.stream.Stream.concat(terminals.stream(), tvDisplays.stream())
-                .sorted(Comparator.comparing(DeviceResponse::type).thenComparing(DeviceResponse::code))
-                .toList();
+        return deviceManagementService.list();
     }
 
-    private DeviceResponse terminalResponse(TerminalEntity entity) {
-        return new DeviceResponse(
-                entity.getId(),
-                "TERMINAL",
-                entity.getDepartmentId(),
-                null,
-                entity.getCode(),
-                entity.getName(),
-                entity.isActive(),
-                entity.getLastSeenAt()
-        );
+    @PostMapping("/terminals")
+    @PreAuthorize("hasAuthority('TERMINAL_CREATE')")
+    ResponseEntity<ProvisionedDeviceResponse> createTerminal(@Valid @RequestBody CreateTerminalRequest request,
+                                                             HttpServletRequest httpRequest) {
+        return oneTimeTokenResponse(HttpStatus.CREATED, deviceManagementService.createTerminal(request, httpRequest));
     }
 
-    private DeviceResponse tvDisplayResponse(TvDisplayEntity entity) {
-        return new DeviceResponse(
-                entity.getId(),
-                "TV_DISPLAY",
-                entity.getDepartmentId(),
-                entity.getHallId(),
-                entity.getCode(),
-                entity.getName(),
-                entity.isActive(),
-                entity.getLastSeenAt()
-        );
+    @PatchMapping("/terminals/{id}")
+    @PreAuthorize("hasAuthority('TERMINAL_UPDATE')")
+    DeviceResponse updateTerminal(@PathVariable UUID id,
+                                  @Valid @RequestBody UpdateTerminalRequest request,
+                                  HttpServletRequest httpRequest) {
+        return deviceManagementService.updateTerminal(id, request, httpRequest);
     }
 
-    public record DeviceResponse(
-            UUID id,
-            String type,
-            UUID departmentId,
-            UUID hallId,
-            String code,
-            String name,
-            boolean active,
-            Instant lastSeenAt
-    ) {
+    @PostMapping("/terminals/{id}/rotate-token")
+    @PreAuthorize("hasAuthority('TERMINAL_CONFIGURE')")
+    ResponseEntity<ProvisionedDeviceResponse> rotateTerminalToken(@PathVariable UUID id, HttpServletRequest httpRequest) {
+        return oneTimeTokenResponse(HttpStatus.OK, deviceManagementService.rotateTerminalToken(id, httpRequest));
+    }
+
+    @PostMapping("/tv-displays")
+    @PreAuthorize("hasAuthority('TV_CREATE')")
+    ResponseEntity<ProvisionedDeviceResponse> createTvDisplay(@Valid @RequestBody CreateTvDisplayRequest request,
+                                                              HttpServletRequest httpRequest) {
+        return oneTimeTokenResponse(HttpStatus.CREATED, deviceManagementService.createTvDisplay(request, httpRequest));
+    }
+
+    @PatchMapping("/tv-displays/{id}")
+    @PreAuthorize("hasAuthority('TV_UPDATE')")
+    DeviceResponse updateTvDisplay(@PathVariable UUID id,
+                                   @Valid @RequestBody UpdateTvDisplayRequest request,
+                                   HttpServletRequest httpRequest) {
+        return deviceManagementService.updateTvDisplay(id, request, httpRequest);
+    }
+
+    @PostMapping("/tv-displays/{id}/rotate-token")
+    @PreAuthorize("hasAuthority('TV_CONFIGURE')")
+    ResponseEntity<ProvisionedDeviceResponse> rotateTvDisplayToken(@PathVariable UUID id, HttpServletRequest httpRequest) {
+        return oneTimeTokenResponse(HttpStatus.OK, deviceManagementService.rotateTvDisplayToken(id, httpRequest));
+    }
+
+    private ResponseEntity<ProvisionedDeviceResponse> oneTimeTokenResponse(HttpStatus status,
+                                                                            ProvisionedDeviceResponse response) {
+        return ResponseEntity.status(status)
+                .cacheControl(CacheControl.noStore())
+                .body(response);
     }
 }

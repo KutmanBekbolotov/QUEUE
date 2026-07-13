@@ -3,11 +3,20 @@ package kg.equeue.backend.common;
 import jakarta.servlet.http.HttpServletRequest;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.security.SecureRandom;
 import java.util.Base64;
 import org.springframework.stereotype.Service;
 
 @Service
 public class DeviceTokenService {
+
+    private final SecureRandom secureRandom = new SecureRandom();
+
+    public String generateRawToken() {
+        byte[] bytes = new byte[32];
+        secureRandom.nextBytes(bytes);
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
+    }
 
     public String requireRawToken(HttpServletRequest request) {
         String token = request.getHeader("X-Device-Token");
@@ -24,7 +33,10 @@ public class DeviceTokenService {
     }
 
     public boolean matches(String rawToken, String expectedHash) {
-        return hash(rawToken).equals(expectedHash);
+        return MessageDigest.isEqual(
+                hash(rawToken).getBytes(StandardCharsets.US_ASCII),
+                expectedHash.getBytes(StandardCharsets.US_ASCII)
+        );
     }
 
     public String hash(String value) {
