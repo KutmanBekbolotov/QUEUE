@@ -234,10 +234,10 @@ class ReportAggregationRepositoryTest extends PostgresIntegrationTest {
                 VALUES (
                   gen_random_uuid(), ?, ?, ?, ?, 'A', ?,
                   ?, ?, 'ADMIN_CREATED', ?, 0, ?, ?, ?,
-                  CASE WHEN ? IS NULL THEN NULL ELSE (?::date || 'T' || ?)::timestamptz END,
-                  CASE WHEN ? IS NULL THEN NULL ELSE (?::date || 'T' || ?)::timestamptz END,
-                  CASE WHEN ? IS NULL THEN NULL ELSE (?::date || 'T' || ?)::timestamptz END,
-                  CASE WHEN ? IS NULL THEN NULL ELSE (?::date || 'T' || ?)::timestamptz END,
+                  CASE WHEN ?::text IS NULL THEN NULL ELSE (?::date || 'T' || ?)::timestamptz END,
+                  CASE WHEN ?::text IS NULL THEN NULL ELSE (?::date || 'T' || ?)::timestamptz END,
+                  CASE WHEN ?::text IS NULL THEN NULL ELSE (?::date || 'T' || ?)::timestamptz END,
+                  CASE WHEN ?::text IS NULL THEN NULL ELSE (?::date || 'T' || ?)::timestamptz END,
                   ?, (?::date || 'T' || ?)::timestamptz, (?::date || 'T' || ?)::timestamptz
                 )
                 """,
