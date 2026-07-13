@@ -211,14 +211,24 @@ curl -X POST http://localhost:8080/api/v1/tickets/$TICKET_ID/no-show -H "Authori
 Device and TV examples:
 
 ```bash
+TERMINAL_DEVICE=$(curl -s -X POST http://localhost:8080/api/v1/devices/terminals \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"departmentId":"'$DEPARTMENT_ID'","code":"TERM-01","name":"Main terminal"}')
+
+TERMINAL_ID=$(jq -r '.device.id' <<<"$TERMINAL_DEVICE")
+TERMINAL_TOKEN=$(jq -r '.deviceToken' <<<"$TERMINAL_DEVICE")
+
 curl -X POST http://localhost:8080/api/v1/terminal/$TERMINAL_ID/tickets \
   -H "X-Device-Token: $TERMINAL_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"departmentId":"'$DEPARTMENT_ID'","serviceId":"'$SERVICE_ID'"}'
 
-curl -N http://localhost:8080/api/v1/tv/$DEPARTMENT_ID/stream \
+curl -N http://localhost:8080/api/v1/tv/displays/$TV_DISPLAY_ID/stream \
   -H "X-Device-Token: $TV_DEVICE_TOKEN"
 ```
+
+Device tokens are returned only when a device is provisioned or its token is rotated. The backend stores only their hashes. See [`docs/device-auth.md`](docs/device-auth.md) for the complete activation and rotation contract.
 
 ## Booking Smoke
 

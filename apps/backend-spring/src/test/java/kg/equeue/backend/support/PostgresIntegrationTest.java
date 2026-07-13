@@ -26,7 +26,6 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 @SpringBootTest(properties = {
@@ -38,11 +37,14 @@ public abstract class PostgresIntegrationTest {
 
     protected static final UUID TEST_USER_ID = UUID.fromString("00000000-0000-0000-0000-0000000000aa");
 
-    @Container
     static final PostgreSQLContainer<?> POSTGRES = new PostgreSQLContainer<>("postgres:16-alpine")
             .withDatabaseName("equeue_test")
             .withUsername("equeue")
             .withPassword("equeue");
+
+    static {
+        POSTGRES.start();
+    }
 
     @Autowired
     protected JdbcTemplate jdbcTemplate;

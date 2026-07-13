@@ -155,6 +155,27 @@ class UserServiceTest {
         verify(userRepository).save(user);
     }
 
+    @Test
+    void deviceRolesCannotBeAssignedToLoginUsers() {
+        UUID userId = UUID.randomUUID();
+        UserEntity user = new UserEntity();
+        user.setId(userId);
+        user.setUsername("device-user");
+        user.setStatus(UserStatus.ACTIVE);
+        when(userRepository.findDetailedById(userId)).thenReturn(Optional.of(user));
+
+        assertThatThrownBy(() -> userService.update(
+                userId,
+                new UpdateUserRequest(null, null, null, null, null, null, java.util.Set.of("TV_DEVICE")),
+                null
+        ))
+                .isInstanceOfSatisfying(ApiException.class,
+                        ex -> assertThat(ex.getCode()).isEqualTo("DEVICE_ROLE_NOT_ASSIGNABLE"));
+
+        verify(roleRepository, never()).findByCodeIn(anySet());
+        verify(userRepository, never()).save(user);
+    }
+
     private static class FakeUserDepartmentScopeRepository extends UserDepartmentScopeRepository {
         UUID existingDepartmentId;
         UUID primaryDepartmentId;

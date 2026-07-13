@@ -23,6 +23,8 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class UserService {
 
+    private static final Set<String> DEVICE_ROLE_CODES = Set.of("TERMINAL_DEVICE", "TV_DEVICE");
+
     private final UserRepository userRepository;
     private final RoleRepository roleRepository;
     private final UserDepartmentScopeRepository departmentScopeRepository;
@@ -174,6 +176,10 @@ public class UserService {
     private HashSet<RoleEntity> loadRoles(Set<String> roleCodes) {
         if (roleCodes == null || roleCodes.isEmpty()) {
             return new HashSet<>();
+        }
+        if (roleCodes.stream().anyMatch(DEVICE_ROLE_CODES::contains)) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "DEVICE_ROLE_NOT_ASSIGNABLE",
+                    "Device roles cannot be assigned to users; provision the device through /api/v1/devices");
         }
         List<RoleEntity> roles = roleRepository.findByCodeIn(roleCodes);
         if (roles.size() != roleCodes.size()) {

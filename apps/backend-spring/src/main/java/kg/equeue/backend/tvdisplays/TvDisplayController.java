@@ -11,7 +11,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 @RestController
-@RequestMapping("/api/v1/tv/{departmentId}")
+@RequestMapping("/api/v1/tv")
 @Tag(name = "TV Displays")
 public class TvDisplayController {
 
@@ -21,13 +21,25 @@ public class TvDisplayController {
         this.tvDisplayService = tvDisplayService;
     }
 
-    @GetMapping("/snapshot")
-    TvSnapshotResponse snapshot(@PathVariable UUID departmentId, HttpServletRequest request) {
-        return tvDisplayService.snapshot(departmentId, request);
+    @GetMapping("/displays/{displayId}/snapshot")
+    TvSnapshotResponse snapshot(@PathVariable UUID displayId, HttpServletRequest request) {
+        return tvDisplayService.snapshot(displayId, request);
     }
 
-    @GetMapping("/stream")
-    SseEmitter stream(@PathVariable UUID departmentId, HttpServletRequest request) {
-        return tvDisplayService.stream(departmentId, request);
+    @GetMapping("/displays/{displayId}/stream")
+    SseEmitter stream(@PathVariable UUID displayId, HttpServletRequest request) {
+        return tvDisplayService.stream(displayId, request);
+    }
+
+    @Deprecated
+    @GetMapping("/{departmentId}/snapshot")
+    TvSnapshotResponse legacySnapshot(@PathVariable UUID departmentId, HttpServletRequest request) {
+        return tvDisplayService.legacySnapshot(departmentId, request);
+    }
+
+    @Deprecated
+    @GetMapping("/{departmentId}/stream")
+    SseEmitter legacyStream(@PathVariable UUID departmentId, HttpServletRequest request) {
+        return tvDisplayService.legacyStream(departmentId, request);
     }
 }

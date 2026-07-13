@@ -45,24 +45,48 @@ public class TvDisplayEntity {
         return departmentId;
     }
 
+    public void setDepartmentId(UUID departmentId) {
+        this.departmentId = departmentId;
+    }
+
     public UUID getHallId() {
         return hallId;
+    }
+
+    public void setHallId(UUID hallId) {
+        this.hallId = hallId;
     }
 
     public String getCode() {
         return code;
     }
 
+    public void setCode(String code) {
+        this.code = code;
+    }
+
     public String getName() {
         return name;
+    }
+
+    public void setName(String name) {
+        this.name = name;
     }
 
     public String getTokenHash() {
         return tokenHash;
     }
 
+    public void setTokenHash(String tokenHash) {
+        this.tokenHash = tokenHash;
+    }
+
     public boolean isActive() {
         return active;
+    }
+
+    public void setActive(boolean active) {
+        this.active = active;
     }
 
     public Instant getLastSeenAt() {
