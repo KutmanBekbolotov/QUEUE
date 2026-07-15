@@ -368,10 +368,8 @@ public class DirectoryService {
     public void deleteWindow(UUID id, HttpServletRequest httpRequest) {
         ServiceWindowEntity entity = windowOrThrow(id);
         departmentScopeService.requireDepartmentAccess(entity.getDepartmentId());
-        deactivateWindow(entity);
-        ServiceWindowEntity saved = serviceWindowRepository.save(entity);
-        deactivateWindowAssignments(List.of(saved));
-        auditService.write("WINDOW_DELETE", "WINDOW", saved.getId(), simpleJson("active", "false"), httpRequest);
+        auditService.write("WINDOW_DELETE", "WINDOW", entity.getId(), simpleJson("deleted", "true"), httpRequest);
+        serviceWindowRepository.delete(entity);
     }
 
     @Transactional
