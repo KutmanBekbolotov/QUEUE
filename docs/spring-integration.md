@@ -349,6 +349,8 @@ type UserResponse = {
 };
 ```
 
+Для пользователя с ролью `OPERATOR` поле `departmentId` обязательно. Создание пользователя или назначение роли без отделения возвращает `400 OPERATOR_DEPARTMENT_REQUIRED`. До начала операторской смены привяжите оператора к рабочему окну через `POST /api/v1/windows/{windowId}/assign-employee`.
+
 ### 7.2. Roles and permissions
 
 | Method | Path | Permission | Body | Response |

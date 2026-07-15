@@ -17,6 +17,8 @@ import kg.equeue.backend.auth.AuthenticatedPrincipal;
 import kg.equeue.backend.common.ApiException;
 import kg.equeue.backend.roles.RoleEntity;
 import kg.equeue.backend.roles.RoleRepository;
+import kg.equeue.backend.users.dto.AssignUserRolesRequest;
+import kg.equeue.backend.users.dto.CreateUserRequest;
 import kg.equeue.backend.users.dto.UpdateUserRequest;
 import kg.equeue.backend.users.dto.UpdateUserStatusRequest;
 import org.junit.jupiter.api.AfterEach;
@@ -153,6 +155,53 @@ class UserServiceTest {
         assertThat(departmentScopeRepository.replacedUserId).isEqualTo(userId);
         assertThat(departmentScopeRepository.replacedDepartmentId).isEqualTo(departmentId);
         verify(userRepository).save(user);
+    }
+
+    @Test
+    void createOperatorWithoutDepartmentIsRejected() {
+        RoleEntity role = new RoleEntity();
+        role.setCode("OPERATOR");
+        when(roleRepository.findByCodeIn(anySet())).thenReturn(List.of(role));
+
+        assertThatThrownBy(() -> userService.create(
+                new CreateUserRequest(
+                        "operator",
+                        "Password123",
+                        "Operator",
+                        null,
+                        null,
+                        null,
+                        java.util.Set.of("OPERATOR")
+                ),
+                null
+        ))
+                .isInstanceOfSatisfying(ApiException.class,
+                        ex -> assertThat(ex.getCode()).isEqualTo("OPERATOR_DEPARTMENT_REQUIRED"));
+
+        verify(userRepository, never()).saveAndFlush(org.mockito.ArgumentMatchers.any(UserEntity.class));
+    }
+
+    @Test
+    void assigningOperatorRoleWithoutDepartmentIsRejected() {
+        UUID userId = UUID.randomUUID();
+        UserEntity user = new UserEntity();
+        user.setId(userId);
+        user.setUsername("user");
+        user.setStatus(UserStatus.ACTIVE);
+        RoleEntity role = new RoleEntity();
+        role.setCode("OPERATOR");
+        when(userRepository.findDetailedById(userId)).thenReturn(Optional.of(user));
+        when(roleRepository.findByCodeIn(anySet())).thenReturn(List.of(role));
+
+        assertThatThrownBy(() -> userService.assignRoles(
+                userId,
+                new AssignUserRolesRequest(java.util.Set.of("OPERATOR")),
+                null
+        ))
+                .isInstanceOfSatisfying(ApiException.class,
+                        ex -> assertThat(ex.getCode()).isEqualTo("OPERATOR_DEPARTMENT_REQUIRED"));
+
+        verify(userRepository, never()).save(user);
     }
 
     @Test
