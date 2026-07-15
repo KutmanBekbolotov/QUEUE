@@ -7,6 +7,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import kg.equeue.backend.audit.LoginAuditLogEntity;
@@ -18,6 +19,7 @@ import kg.equeue.backend.config.SecurityProperties;
 import kg.equeue.backend.permissions.PermissionEntity;
 import kg.equeue.backend.roles.RoleEntity;
 import kg.equeue.backend.users.UserDepartmentScopeRepository;
+import kg.equeue.backend.users.UserAssignmentService;
 import kg.equeue.backend.users.UserEntity;
 import kg.equeue.backend.users.UserRepository;
 import kg.equeue.backend.users.UserStatus;
@@ -28,26 +30,37 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 
 class AuthServiceTest {
 
+    private final UUID departmentId = UUID.randomUUID();
+    private final UUID windowId = UUID.randomUUID();
+    private final UUID serviceId = UUID.randomUUID();
     private final UserRepository userRepository = org.mockito.Mockito.mock(UserRepository.class);
     private final RefreshTokenRepository refreshTokenRepository = org.mockito.Mockito.mock(RefreshTokenRepository.class);
     private final LoginAuditLogRepository loginAuditLogRepository = org.mockito.Mockito.mock(LoginAuditLogRepository.class);
     private final UserDepartmentScopeRepository departmentScopeRepository = new UserDepartmentScopeRepository(null) {
         @Override
         public UUID primaryDepartmentId(UUID userId) {
-            return null;
+            return departmentId;
         }
     };
+    private final UserAssignmentService userAssignmentService = org.mockito.Mockito.mock(UserAssignmentService.class);
     private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
     private final SecurityProperties securityProperties = securityProperties();
-    private final AuthService authService = new AuthService(
-            userRepository,
-            refreshTokenRepository,
-            loginAuditLogRepository,
-            departmentScopeRepository,
-            passwordEncoder,
-            new JwtService(securityProperties),
-            securityProperties
-    );
+    private final AuthService authService;
+
+    AuthServiceTest() {
+        when(userAssignmentService.assignments(any(UUID.class)))
+                .thenReturn(new UserAssignmentService.AssignmentSnapshot(windowId, List.of(serviceId), List.of("VS")));
+        authService = new AuthService(
+                userRepository,
+                refreshTokenRepository,
+                loginAuditLogRepository,
+                departmentScopeRepository,
+                userAssignmentService,
+                passwordEncoder,
+                new JwtService(securityProperties),
+                securityProperties
+        );
+    }
 
     @Test
     void loginReturnsAccessAndRefreshTokens() {
@@ -61,6 +74,11 @@ class AuthServiceTest {
         assertThat(response.tokenType()).isEqualTo("Bearer");
         assertThat(response.roles()).containsExactly("SUPER_ADMIN");
         assertThat(response.permissions()).containsExactly("USER_READ");
+        assertThat(response.id()).isEqualTo(user.getId());
+        assertThat(response.departmentId()).isEqualTo(departmentId);
+        assertThat(response.windowId()).isEqualTo(windowId);
+        assertThat(response.serviceIds()).containsExactly(serviceId);
+        assertThat(response.serviceCodes()).containsExactly("VS");
         ArgumentCaptor<RefreshTokenEntity> refreshTokenCaptor = ArgumentCaptor.forClass(RefreshTokenEntity.class);
         verify(refreshTokenRepository).save(refreshTokenCaptor.capture());
         assertThat(refreshTokenCaptor.getValue().getTokenHash()).isNotEqualTo(response.refreshToken());
@@ -98,6 +116,23 @@ class AuthServiceTest {
         assertThat(auditCaptor.getValue().getReason()).isEqualTo("USER_NOT_ACTIVE");
     }
 
+    @Test
+    void meReturnsUserAssignments() {
+        UserEntity user = activeUser();
+        when(userRepository.findDetailedById(user.getId())).thenReturn(Optional.of(user));
+
+        var response = authService.me(new AuthenticatedPrincipal(
+                user.getId(), user.getUsername(), user.getTokenVersion(), user.getStatus(), List.of()
+        ));
+
+        assertThat(response.email()).isEqualTo("admin@example.com");
+        assertThat(response.phone()).isEqualTo("+996555000000");
+        assertThat(response.departmentId()).isEqualTo(departmentId);
+        assertThat(response.windowId()).isEqualTo(windowId);
+        assertThat(response.serviceIds()).containsExactly(serviceId);
+        assertThat(response.serviceCodes()).containsExactly("VS");
+    }
+
     private UserEntity activeUser() {
         PermissionEntity permission = new PermissionEntity();
         permission.setCode("USER_READ");
@@ -109,6 +144,9 @@ class AuthServiceTest {
         UserEntity user = new UserEntity();
         user.setId(java.util.UUID.randomUUID());
         user.setUsername("admin");
+        user.setFullName("Admin User");
+        user.setEmail("admin@example.com");
+        user.setPhone("+996555000000");
         user.setPasswordHash(passwordEncoder.encode("ChangeMe123!"));
         user.setStatus(UserStatus.ACTIVE);
         user.setTokenVersion(1);

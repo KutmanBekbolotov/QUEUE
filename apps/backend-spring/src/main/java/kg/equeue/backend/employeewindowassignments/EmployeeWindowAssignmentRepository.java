@@ -7,6 +7,8 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface EmployeeWindowAssignmentRepository extends JpaRepository<EmployeeWindowAssignmentEntity, UUID> {
     Optional<EmployeeWindowAssignmentEntity> findByUserIdAndServiceWindowId(UUID userId, UUID serviceWindowId);
+    List<EmployeeWindowAssignmentEntity> findByUserId(UUID userId);
+    Optional<EmployeeWindowAssignmentEntity> findFirstByUserIdAndActiveTrueOrderByAssignedAtDesc(UUID userId);
     List<EmployeeWindowAssignmentEntity> findByServiceWindowId(UUID serviceWindowId);
     boolean existsByUserIdAndServiceWindowIdAndActiveTrue(UUID userId, UUID serviceWindowId);
 }

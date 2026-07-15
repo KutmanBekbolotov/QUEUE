@@ -20,6 +20,7 @@ import kg.equeue.backend.config.SecurityProperties;
 import kg.equeue.backend.permissions.PermissionEntity;
 import kg.equeue.backend.roles.RoleEntity;
 import kg.equeue.backend.users.UserDepartmentScopeRepository;
+import kg.equeue.backend.users.UserAssignmentService;
 import kg.equeue.backend.users.UserEntity;
 import kg.equeue.backend.users.UserRepository;
 import kg.equeue.backend.users.UserStatus;
@@ -35,6 +36,7 @@ public class AuthService {
     private final RefreshTokenRepository refreshTokenRepository;
     private final LoginAuditLogRepository loginAuditLogRepository;
     private final UserDepartmentScopeRepository departmentScopeRepository;
+    private final UserAssignmentService userAssignmentService;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
     private final SecurityProperties securityProperties;
@@ -44,6 +46,7 @@ public class AuthService {
                        RefreshTokenRepository refreshTokenRepository,
                        LoginAuditLogRepository loginAuditLogRepository,
                        UserDepartmentScopeRepository departmentScopeRepository,
+                       UserAssignmentService userAssignmentService,
                        PasswordEncoder passwordEncoder,
                        JwtService jwtService,
                        SecurityProperties securityProperties) {
@@ -51,6 +54,7 @@ public class AuthService {
         this.refreshTokenRepository = refreshTokenRepository;
         this.loginAuditLogRepository = loginAuditLogRepository;
         this.departmentScopeRepository = departmentScopeRepository;
+        this.userAssignmentService = userAssignmentService;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
         this.securityProperties = securityProperties;
@@ -111,11 +115,17 @@ public class AuthService {
     public MeResponse me(AuthenticatedPrincipal principal) {
         UserEntity user = userRepository.findDetailedById(principal.id())
                 .orElseThrow(() -> new ApiException(HttpStatus.UNAUTHORIZED, "USER_NOT_FOUND", "Authenticated user was not found"));
+        UserAssignmentService.AssignmentSnapshot assignments = userAssignmentService.assignments(user.getId());
         return new MeResponse(
                 user.getId(),
                 user.getUsername(),
                 user.getFullName(),
+                user.getEmail(),
+                user.getPhone(),
                 departmentScopeRepository.primaryDepartmentId(user.getId()),
+                assignments.windowId(),
+                assignments.serviceIds(),
+                assignments.serviceCodes(),
                 user.getStatus(),
                 roleCodes(user),
                 permissionCodes(user)
@@ -135,7 +145,25 @@ public class AuthService {
     private AuthResponse response(UserEntity user, String rawRefreshToken) {
         String accessToken = jwtService.createAccessToken(user);
         Instant expiresAt = Instant.now().plus(securityProperties.getJwt().getAccessTokenTtl());
-        return new AuthResponse(accessToken, rawRefreshToken, "Bearer", expiresAt, roleCodes(user), permissionCodes(user));
+        UserAssignmentService.AssignmentSnapshot assignments = userAssignmentService.assignments(user.getId());
+        return new AuthResponse(
+                accessToken,
+                rawRefreshToken,
+                "Bearer",
+                expiresAt,
+                roleCodes(user),
+                permissionCodes(user),
+                user.getId(),
+                user.getUsername(),
+                user.getFullName(),
+                user.getEmail(),
+                user.getPhone(),
+                departmentScopeRepository.primaryDepartmentId(user.getId()),
+                assignments.windowId(),
+                assignments.serviceIds(),
+                assignments.serviceCodes(),
+                user.getStatus()
+        );
     }
 
     private RefreshTokenPair createRefreshToken(UserEntity user, String ip) {

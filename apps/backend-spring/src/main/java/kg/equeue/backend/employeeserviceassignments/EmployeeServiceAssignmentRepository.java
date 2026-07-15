@@ -7,6 +7,8 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface EmployeeServiceAssignmentRepository extends JpaRepository<EmployeeServiceAssignmentEntity, UUID> {
     Optional<EmployeeServiceAssignmentEntity> findByUserIdAndDepartmentIdAndServiceId(UUID userId, UUID departmentId, UUID serviceId);
+    List<EmployeeServiceAssignmentEntity> findByUserId(UUID userId);
+    List<EmployeeServiceAssignmentEntity> findByUserIdAndActiveTrueOrderByServiceIdAsc(UUID userId);
     List<EmployeeServiceAssignmentEntity> findByUserIdAndServiceId(UUID userId, UUID serviceId);
     List<EmployeeServiceAssignmentEntity> findByDepartmentId(UUID departmentId);
     List<EmployeeServiceAssignmentEntity> findByServiceId(UUID serviceId);

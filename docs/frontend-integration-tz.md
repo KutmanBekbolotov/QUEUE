@@ -250,6 +250,12 @@ Response:
   "id": "uuid",
   "username": "admin",
   "fullName": "Bootstrap Admin",
+  "email": null,
+  "phone": null,
+  "departmentId": "uuid",
+  "windowId": "uuid",
+  "serviceIds": ["service-uuid"],
+  "serviceCodes": ["VS"],
   "status": "ACTIVE",
   "roles": ["SUPER_ADMIN"],
   "permissions": ["USER_READ", "ROLE_READ"]
@@ -347,6 +353,8 @@ type CreateUserRequest = {
   phone?: string;
   departmentId?: string;
   roleCodes?: string[];
+  windowId?: string;
+  serviceIds?: string[];
 };
 
 type UserStatus = 'ACTIVE' | 'BLOCKED' | 'DISABLED';
@@ -370,7 +378,9 @@ UI-требования:
 
 - При создании пользователя password должен быть 8-120 символов.
 - `roleCodes` и `permissionCodes` передаются как set/array строк.
-- Для пользователя с ролью `OPERATOR` поле `departmentId` обязательно. После создания оператор должен быть привязан к рабочему окну через `POST /api/v1/windows/{windowId}/assign-employee` до начала смены.
+- Для пользователя с ролью `OPERATOR` поле `departmentId` обязательно. Передавайте `windowId` и выбранные услуги в том же `POST /api/v1/users` или `PATCH /api/v1/users/{id}`. Элементы `serviceIds` могут быть UUID или кодами (`VS`, `TS`); aliases `services` и `serviceCodes` также поддерживаются.
+- Login, refresh и `GET /api/v1/auth/me` возвращают `departmentId`, `windowId`, `serviceIds`, `serviceCodes` и совместимый alias `services`; не подменять их пустыми значениями на фронте.
+- При редактировании пропущенное поле назначения означает «не менять», `windowId: ""` очищает окно, `serviceIds: []` очищает услуги.
 - Системные роли отображать как неизменяемые по смыслу, даже если backend разрешит часть операций.
 
 ### 7.4. Справочники

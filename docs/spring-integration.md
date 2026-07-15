@@ -276,13 +276,28 @@ type AuthResponse = {
   expiresAt: string;
   roles: string[];
   permissions: string[];
+  id: string;
+  username: string;
+  fullName: string | null;
+  email: string | null;
+  phone: string | null;
+  departmentId: string | null;
+  windowId: string | null;
+  serviceIds: string[];
+  serviceCodes: string[];
+  status: UserStatus;
 };
 
 type MeResponse = {
   id: string;
   username: string;
   fullName: string | null;
+  email: string | null;
+  phone: string | null;
   departmentId: string | null;
+  windowId: string | null;
+  serviceIds: string[];
+  serviceCodes: string[];
   status: UserStatus;
   roles: string[];
   permissions: string[];
@@ -322,6 +337,8 @@ type CreateUserRequest = {
   phone?: string;
   departmentId?: string;
   roleCodes?: string[];
+  windowId?: string;
+  serviceIds?: string[];
 };
 
 type UpdateUserRequest = Partial<CreateUserRequest>;
@@ -341,6 +358,9 @@ type UserResponse = {
   email: string | null;
   phone: string | null;
   departmentId: string | null;
+  windowId: string | null;
+  serviceIds: string[];
+  serviceCodes: string[];
   status: UserStatus;
   tokenVersion: number;
   roles: string[];
@@ -349,7 +369,7 @@ type UserResponse = {
 };
 ```
 
-Для пользователя с ролью `OPERATOR` поле `departmentId` обязательно. Создание пользователя или назначение роли без отделения возвращает `400 OPERATOR_DEPARTMENT_REQUIRED`. До начала операторской смены привяжите оператора к рабочему окну через `POST /api/v1/windows/{windowId}/assign-employee`.
+Для пользователя с ролью `OPERATOR` поле `departmentId` обязательно. Создание пользователя или назначение роли без отделения возвращает `400 OPERATOR_DEPARTMENT_REQUIRED`. `windowId` и `serviceIds` сохраняются вместе с пользователем; элементы `serviceIds` могут быть UUID или кодами услуг (`VS`, `TS`). Для совместимости backend также принимает это поле под именами `services` и `serviceCodes`, а в ответах дублирует `serviceCodes` как `services`. При `PATCH` пропущенные назначения не меняются, пустой `windowId` очищает окно, а пустой `serviceIds` очищает услуги. Отдельные endpoints назначения окна и услуг продолжают работать.
 
 ### 7.2. Roles and permissions
 
