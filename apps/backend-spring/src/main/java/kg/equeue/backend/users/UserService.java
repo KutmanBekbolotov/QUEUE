@@ -71,6 +71,8 @@ public class UserService {
             throw new ApiException(HttpStatus.CONFLICT, "USERNAME_EXISTS", "Username already exists");
         }
         requireDepartmentExists(request.departmentId());
+        HashSet<RoleEntity> roles = loadRoles(request.roleCodes());
+        requireOperatorDepartment(roles, request.departmentId());
         UserEntity user = new UserEntity();
         user.setUsername(request.username());
         user.setPasswordHash(passwordEncoder.encode(request.password()));
@@ -78,7 +80,7 @@ public class UserService {
         user.setEmail(request.email());
         user.setPhone(request.phone());
         user.setStatus(UserStatus.ACTIVE);
-        user.setRoles(loadRoles(request.roleCodes()));
+        user.setRoles(roles);
         UserEntity saved = userRepository.saveAndFlush(user);
         departmentScopeRepository.replacePrimaryDepartment(saved.getId(), request.departmentId());
         auditService.write("USER_CREATE", "USER", saved.getId(), "{\"username\":\"" + saved.getUsername() + "\"}", httpRequest);
@@ -91,6 +93,7 @@ public class UserService {
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "USER_NOT_FOUND", "User was not found"));
 
         boolean invalidateTokens = false;
+        UUID effectiveDepartmentId = departmentScopeRepository.primaryDepartmentId(id);
         if (request.username() != null) {
             if (request.username().isBlank()) {
                 throw new ApiException(HttpStatus.BAD_REQUEST, "USERNAME_REQUIRED", "Username is required");
@@ -123,8 +126,12 @@ public class UserService {
         }
         if (request.departmentId() != null) {
             requireDepartmentExists(request.departmentId());
-            departmentScopeRepository.replacePrimaryDepartment(id, request.departmentId());
+            effectiveDepartmentId = request.departmentId();
             invalidateTokens = true;
+        }
+        requireOperatorDepartment(user.getRoles(), effectiveDepartmentId);
+        if (request.departmentId() != null) {
+            departmentScopeRepository.replacePrimaryDepartment(id, request.departmentId());
         }
         if (invalidateTokens) {
             user.setTokenVersion(user.getTokenVersion() + 1);
@@ -166,7 +173,9 @@ public class UserService {
     public UserResponse assignRoles(UUID id, AssignUserRolesRequest request, HttpServletRequest httpRequest) {
         UserEntity user = userRepository.findDetailedById(id)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "USER_NOT_FOUND", "User was not found"));
-        user.setRoles(loadRoles(request.roleCodes()));
+        HashSet<RoleEntity> roles = loadRoles(request.roleCodes());
+        requireOperatorDepartment(roles, departmentScopeRepository.primaryDepartmentId(id));
+        user.setRoles(roles);
         user.setTokenVersion(user.getTokenVersion() + 1);
         UserEntity saved = userRepository.save(user);
         auditService.write("USER_ROLE_ASSIGN", "USER", saved.getId(), "{\"roles\":\"updated\"}", httpRequest);
@@ -191,6 +200,14 @@ public class UserService {
     private void requireDepartmentExists(UUID departmentId) {
         if (departmentId != null && !departmentScopeRepository.departmentExists(departmentId)) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "DEPARTMENT_NOT_FOUND", "Department was not found");
+        }
+    }
+
+    private void requireOperatorDepartment(Set<RoleEntity> roles, UUID departmentId) {
+        boolean operator = roles.stream().anyMatch(role -> "OPERATOR".equals(role.getCode()));
+        if (operator && departmentId == null) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "OPERATOR_DEPARTMENT_REQUIRED",
+                    "departmentId is required for operator users");
         }
     }
 

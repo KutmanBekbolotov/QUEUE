@@ -345,6 +345,7 @@ type CreateUserRequest = {
   fullName?: string;
   email?: string;
   phone?: string;
+  departmentId?: string;
   roleCodes?: string[];
 };
 
@@ -369,6 +370,7 @@ UI-требования:
 
 - При создании пользователя password должен быть 8-120 символов.
 - `roleCodes` и `permissionCodes` передаются как set/array строк.
+- Для пользователя с ролью `OPERATOR` поле `departmentId` обязательно. После создания оператор должен быть привязан к рабочему окну через `POST /api/v1/windows/{windowId}/assign-employee` до начала смены.
 - Системные роли отображать как неизменяемые по смыслу, даже если backend разрешит часть операций.
 
 ### 7.4. Справочники
