@@ -2,6 +2,7 @@ package kg.equeue.backend.users;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anySet;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -32,14 +33,21 @@ class UserServiceTest {
     private final UserRepository userRepository = mock(UserRepository.class);
     private final RoleRepository roleRepository = mock(RoleRepository.class);
     private final FakeUserDepartmentScopeRepository departmentScopeRepository = new FakeUserDepartmentScopeRepository();
+    private final UserAssignmentService userAssignmentService = mock(UserAssignmentService.class);
     private final PasswordEncoder passwordEncoder = mock(PasswordEncoder.class);
     private final UserService userService = new UserService(
             userRepository,
             roleRepository,
             departmentScopeRepository,
+            userAssignmentService,
             passwordEncoder,
             new AuditService(mock(AuditLogRepository.class))
     );
+
+    {
+        when(userAssignmentService.assignments(any(UUID.class)))
+                .thenReturn(UserAssignmentService.AssignmentSnapshot.empty());
+    }
 
     @AfterEach
     void clearSecurityContext() {
@@ -114,6 +122,7 @@ class UserServiceTest {
     void updateChangesProfileRolesPasswordAndDepartmentScope() {
         UUID userId = UUID.randomUUID();
         UUID departmentId = UUID.randomUUID();
+        UUID windowId = UUID.randomUUID();
         RoleEntity role = new RoleEntity();
         role.setCode("OPERATOR");
         UserEntity user = new UserEntity();
@@ -139,7 +148,9 @@ class UserServiceTest {
                         "operator@example.com",
                         "+996555000000",
                         departmentId,
-                        java.util.Set.of("OPERATOR")
+                        java.util.Set.of("OPERATOR"),
+                        windowId.toString(),
+                        java.util.Set.of("VS", "TS")
                 ),
                 null
         );
@@ -154,6 +165,8 @@ class UserServiceTest {
         assertThat(response.roles()).containsExactly("OPERATOR");
         assertThat(departmentScopeRepository.replacedUserId).isEqualTo(userId);
         assertThat(departmentScopeRepository.replacedDepartmentId).isEqualTo(departmentId);
+        verify(userAssignmentService).replaceWindow(userId, departmentId, windowId.toString());
+        verify(userAssignmentService).replaceServices(userId, departmentId, java.util.Set.of("VS", "TS"));
         verify(userRepository).save(user);
     }
 
@@ -171,7 +184,9 @@ class UserServiceTest {
                         null,
                         null,
                         null,
-                        java.util.Set.of("OPERATOR")
+                        java.util.Set.of("OPERATOR"),
+                        null,
+                        null
                 ),
                 null
         ))
@@ -179,6 +194,51 @@ class UserServiceTest {
                         ex -> assertThat(ex.getCode()).isEqualTo("OPERATOR_DEPARTMENT_REQUIRED"));
 
         verify(userRepository, never()).saveAndFlush(org.mockito.ArgumentMatchers.any(UserEntity.class));
+    }
+
+    @Test
+    void createOperatorPersistsWindowAndServiceAssignments() {
+        UUID userId = UUID.randomUUID();
+        UUID departmentId = UUID.randomUUID();
+        UUID windowId = UUID.randomUUID();
+        RoleEntity role = new RoleEntity();
+        role.setCode("OPERATOR");
+        when(userRepository.existsByUsernameIgnoreCase("operator")).thenReturn(false);
+        when(roleRepository.findByCodeIn(anySet())).thenReturn(List.of(role));
+        when(passwordEncoder.encode("Password123")).thenReturn("encoded-password");
+        departmentScopeRepository.existingDepartmentId = departmentId;
+        when(userRepository.saveAndFlush(any(UserEntity.class))).thenAnswer(invocation -> {
+            UserEntity saved = invocation.getArgument(0);
+            saved.setId(userId);
+            return saved;
+        });
+
+        UserAssignmentService.AssignmentSnapshot assignments = new UserAssignmentService.AssignmentSnapshot(
+                windowId,
+                List.of(),
+                List.of("VS", "TS")
+        );
+        when(userAssignmentService.assignments(userId)).thenReturn(assignments);
+
+        var response = userService.create(
+                new CreateUserRequest(
+                        "operator",
+                        "Password123",
+                        "Operator",
+                        null,
+                        null,
+                        departmentId,
+                        java.util.Set.of("OPERATOR"),
+                        windowId.toString(),
+                        java.util.Set.of("VS", "TS")
+                ),
+                null
+        );
+
+        verify(userAssignmentService).replaceWindow(userId, departmentId, windowId.toString());
+        verify(userAssignmentService).replaceServices(userId, departmentId, java.util.Set.of("VS", "TS"));
+        assertThat(response.windowId()).isEqualTo(windowId);
+        assertThat(response.serviceCodes()).containsExactly("VS", "TS");
     }
 
     @Test
@@ -215,7 +275,7 @@ class UserServiceTest {
 
         assertThatThrownBy(() -> userService.update(
                 userId,
-                new UpdateUserRequest(null, null, null, null, null, null, java.util.Set.of("TV_DEVICE")),
+                new UpdateUserRequest(null, null, null, null, null, null, java.util.Set.of("TV_DEVICE"), null, null),
                 null
         ))
                 .isInstanceOfSatisfying(ApiException.class,

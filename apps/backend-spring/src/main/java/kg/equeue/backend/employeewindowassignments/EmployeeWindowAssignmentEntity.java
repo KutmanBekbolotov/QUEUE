@@ -59,5 +59,9 @@ public class EmployeeWindowAssignmentEntity {
     public Instant getAssignedAt() {
         return assignedAt;
     }
+
+    public void setAssignedAt(Instant assignedAt) {
+        this.assignedAt = assignedAt;
+    }
 }
 

@@ -1,5 +1,6 @@
 package kg.equeue.backend.users.dto;
 
+import com.fasterxml.jackson.annotation.JsonAlias;
 import jakarta.validation.constraints.Size;
 import java.util.Set;
 import java.util.UUID;
@@ -11,6 +12,8 @@ public record UpdateUserRequest(
         @Size(max = 255) String email,
         @Size(max = 64) String phone,
         UUID departmentId,
-        Set<String> roleCodes
+        Set<String> roleCodes,
+        String windowId,
+        @JsonAlias({"services", "serviceCodes"}) Set<String> serviceIds
 ) {
 }

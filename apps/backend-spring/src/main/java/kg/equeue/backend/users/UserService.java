@@ -3,6 +3,7 @@ package kg.equeue.backend.users;
 import jakarta.servlet.http.HttpServletRequest;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import kg.equeue.backend.audit.AuditService;
@@ -28,17 +29,20 @@ public class UserService {
     private final UserRepository userRepository;
     private final RoleRepository roleRepository;
     private final UserDepartmentScopeRepository departmentScopeRepository;
+    private final UserAssignmentService userAssignmentService;
     private final PasswordEncoder passwordEncoder;
     private final AuditService auditService;
 
     public UserService(UserRepository userRepository,
                        RoleRepository roleRepository,
                        UserDepartmentScopeRepository departmentScopeRepository,
+                       UserAssignmentService userAssignmentService,
                        PasswordEncoder passwordEncoder,
                        AuditService auditService) {
         this.userRepository = userRepository;
         this.roleRepository = roleRepository;
         this.departmentScopeRepository = departmentScopeRepository;
+        this.userAssignmentService = userAssignmentService;
         this.passwordEncoder = passwordEncoder;
         this.auditService = auditService;
     }
@@ -83,6 +87,12 @@ public class UserService {
         user.setRoles(roles);
         UserEntity saved = userRepository.saveAndFlush(user);
         departmentScopeRepository.replacePrimaryDepartment(saved.getId(), request.departmentId());
+        if (request.windowId() != null) {
+            userAssignmentService.replaceWindow(saved.getId(), request.departmentId(), request.windowId());
+        }
+        if (request.serviceIds() != null) {
+            userAssignmentService.replaceServices(saved.getId(), request.departmentId(), request.serviceIds());
+        }
         auditService.write("USER_CREATE", "USER", saved.getId(), "{\"username\":\"" + saved.getUsername() + "\"}", httpRequest);
         return toResponse(saved);
     }
@@ -94,6 +104,7 @@ public class UserService {
 
         boolean invalidateTokens = false;
         UUID effectiveDepartmentId = departmentScopeRepository.primaryDepartmentId(id);
+        boolean departmentChanged = false;
         if (request.username() != null) {
             if (request.username().isBlank()) {
                 throw new ApiException(HttpStatus.BAD_REQUEST, "USERNAME_REQUIRED", "Username is required");
@@ -126,12 +137,20 @@ public class UserService {
         }
         if (request.departmentId() != null) {
             requireDepartmentExists(request.departmentId());
+            departmentChanged = !Objects.equals(effectiveDepartmentId, request.departmentId());
             effectiveDepartmentId = request.departmentId();
             invalidateTokens = true;
         }
         requireOperatorDepartment(user.getRoles(), effectiveDepartmentId);
         if (request.departmentId() != null) {
             departmentScopeRepository.replacePrimaryDepartment(id, request.departmentId());
+        }
+        if (request.windowId() != null || departmentChanged) {
+            userAssignmentService.replaceWindow(id, effectiveDepartmentId, request.windowId());
+        }
+        if (request.serviceIds() != null || departmentChanged) {
+            userAssignmentService.replaceServices(id, effectiveDepartmentId,
+                    request.serviceIds() == null ? Set.of() : request.serviceIds());
         }
         if (invalidateTokens) {
             user.setTokenVersion(user.getTokenVersion() + 1);
@@ -213,6 +232,7 @@ public class UserService {
 
     private UserResponse toResponse(UserEntity user) {
         UserEntity detailed = user.getRoles().isEmpty() ? userRepository.findDetailedById(user.getId()).orElse(user) : user;
+        UserAssignmentService.AssignmentSnapshot assignments = userAssignmentService.assignments(detailed.getId());
         return new UserResponse(
                 detailed.getId(),
                 detailed.getUsername(),
@@ -220,6 +240,9 @@ public class UserService {
                 detailed.getEmail(),
                 detailed.getPhone(),
                 departmentScopeRepository.primaryDepartmentId(detailed.getId()),
+                assignments.windowId(),
+                assignments.serviceIds(),
+                assignments.serviceCodes(),
                 detailed.getStatus(),
                 detailed.getTokenVersion(),
                 detailed.getRoles().stream().map(RoleEntity::getCode).sorted().toList(),
