@@ -6,11 +6,17 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
 import jakarta.servlet.http.HttpServletRequest;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import kg.equeue.backend.common.ApiException;
 import kg.equeue.backend.common.DeviceTokenService;
+import kg.equeue.backend.departmentservices.DepartmentServiceEntity;
 import kg.equeue.backend.departmentservices.DepartmentServiceRepository;
+import kg.equeue.backend.servicecategories.ServiceCategoryEntity;
+import kg.equeue.backend.servicecategories.ServiceCategoryRepository;
+import kg.equeue.backend.services.QueueServiceEntity;
+import kg.equeue.backend.services.QueueServiceRepository;
 import kg.equeue.backend.ticketevents.TicketActorType;
 import kg.equeue.backend.tickets.TicketDtos.CreateTicketRequest;
 import kg.equeue.backend.tickets.TicketDtos.TicketResponse;
@@ -24,14 +30,68 @@ class TerminalTicketCreationAuthTest {
 
     private final TerminalRepository terminalRepository = org.mockito.Mockito.mock(TerminalRepository.class);
     private final DepartmentServiceRepository departmentServiceRepository = org.mockito.Mockito.mock(DepartmentServiceRepository.class);
+    private final QueueServiceRepository queueServiceRepository = org.mockito.Mockito.mock(QueueServiceRepository.class);
+    private final ServiceCategoryRepository serviceCategoryRepository = org.mockito.Mockito.mock(ServiceCategoryRepository.class);
     private final DeviceTokenService deviceTokenService = new DeviceTokenService();
     private final CapturingTicketService ticketService = new CapturingTicketService();
     private final TerminalService terminalService = new TerminalService(
             terminalRepository,
             departmentServiceRepository,
+            queueServiceRepository,
+            serviceCategoryRepository,
             deviceTokenService,
             ticketService
     );
+
+    @Test
+    void configReturnsTerminalEnabledServicesAndCategories() {
+        UUID terminalId = UUID.randomUUID();
+        UUID departmentId = UUID.randomUUID();
+        UUID serviceId = UUID.randomUUID();
+        UUID categoryId = UUID.randomUUID();
+        TerminalEntity terminal = terminal(terminalId, departmentId);
+        DepartmentServiceEntity departmentService = new DepartmentServiceEntity();
+        departmentService.setDepartmentId(departmentId);
+        departmentService.setServiceId(serviceId);
+        departmentService.setTerminalEnabled(true);
+        QueueServiceEntity service = new QueueServiceEntity();
+        ReflectionTestUtils.setField(service, "id", serviceId);
+        service.setCode("REG");
+        service.setName("Регистрация");
+        service.setCategoryId(categoryId);
+        ServiceCategoryEntity category = new ServiceCategoryEntity();
+        ReflectionTestUtils.setField(category, "id", categoryId);
+        category.setCode("CAT");
+        category.setName("Категория");
+        category.setTicketPrefix("A");
+        when(terminalRepository.findById(terminalId)).thenReturn(Optional.of(terminal));
+        when(departmentServiceRepository.findByDepartmentIdAndActiveTrueOrderByServiceIdAsc(departmentId))
+                .thenReturn(List.of(departmentService));
+        when(queueServiceRepository.findAllById(List.of(serviceId))).thenReturn(List.of(service));
+        when(serviceCategoryRepository.findAllById(List.of(categoryId))).thenReturn(List.of(category));
+        MockHttpServletRequest httpRequest = new MockHttpServletRequest();
+        httpRequest.addHeader("X-Device-Token", "raw-token");
+
+        TerminalDtos.TerminalConfigResponse response = terminalService.config(terminalId, httpRequest);
+
+        assertThat(response.terminalId()).isEqualTo(terminalId);
+        assertThat(response.departmentId()).isEqualTo(departmentId);
+        assertThat(response.serviceIds()).containsExactly(serviceId);
+        assertThat(response.services()).singleElement().satisfies(configService -> {
+            assertThat(configService.id()).isEqualTo(serviceId);
+            assertThat(configService.code()).isEqualTo("REG");
+            assertThat(configService.categoryId()).isEqualTo(categoryId);
+            assertThat(configService.type()).isEqualTo("VS");
+            assertThat(configService.name().ru()).isEqualTo("Регистрация");
+            assertThat(configService.name().ky()).isEqualTo("Регистрация");
+        });
+        assertThat(response.categories()).singleElement().satisfies(configCategory -> {
+            assertThat(configCategory.id()).isEqualTo(categoryId);
+            assertThat(configCategory.type()).isEqualTo("VS");
+            assertThat(configCategory.name().ru()).isEqualTo("Категория");
+            assertThat(configCategory.name().ky()).isEqualTo("Категория");
+        });
+    }
 
     @Test
     void terminalMustCreateTicketsOnlyForConfiguredDepartmentWithValidToken() {

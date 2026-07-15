@@ -871,6 +871,27 @@ type TerminalConfigResponse = {
   code: string;
   name: string;
   serviceIds: string[];
+  services: TerminalConfigService[];
+  categories: TerminalConfigCategory[];
+};
+
+type LocalizedName = {
+  ru: string;
+  ky: string;
+};
+
+type TerminalConfigService = {
+  id: string;
+  code: string;
+  name: LocalizedName;
+  categoryId: string;
+  type: "VS";
+};
+
+type TerminalConfigCategory = {
+  id: string;
+  type: "VS";
+  name: LocalizedName;
 };
 
 type TerminalCreateTicketRequest = {
@@ -883,7 +904,7 @@ type TerminalCreateTicketRequest = {
 };
 ```
 
-Terminal ticket source всегда нормализуется в `TERMINAL`. Terminal не может создать ticket для другого department.
+`services` содержит детали услуг из `serviceIds`; `categories` содержит категории этих услуг. Пока локализация хранится одной строкой, поэтому `name.ru` и `name.ky` заполняются одинаковым значением. Terminal ticket source всегда нормализуется в `TERMINAL`. Terminal не может создать ticket для другого department.
 
 ### 11.2. TV Display
 
@@ -1252,7 +1273,7 @@ Spring direct flow is:
 
 1. Device sends `X-Device-Token`.
 2. Load config: `GET /api/v1/terminal/{terminalId}/config`.
-3. Show only returned `serviceIds`.
+3. Show only returned `services`; `serviceIds` remains for backward-compatible filtering.
 4. Create ticket: `POST /api/v1/terminal/{terminalId}/tickets`.
 5. Print/display `ticketNumber`.
 

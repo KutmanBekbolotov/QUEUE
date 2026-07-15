@@ -605,6 +605,27 @@ type TerminalConfigResponse = {
   code: string;
   name: string;
   serviceIds: string[];
+  services: TerminalConfigService[];
+  categories: TerminalConfigCategory[];
+};
+
+type LocalizedName = {
+  ru: string;
+  ky: string;
+};
+
+type TerminalConfigService = {
+  id: string;
+  code: string;
+  name: LocalizedName;
+  categoryId: string;
+  type: 'VS';
+};
+
+type TerminalConfigCategory = {
+  id: string;
+  type: 'VS';
+  name: LocalizedName;
 };
 
 type TerminalCreateTicketRequest = {
@@ -619,7 +640,7 @@ type TerminalCreateTicketRequest = {
 
 UI-требования:
 
-- После загрузки конфигурации показать только услуги из `serviceIds`.
+- После загрузки конфигурации показать только услуги из `services`; `serviceIds` остаётся для обратной совместимости.
 - После создания талона показать `ticketNumber` крупно и подготовить printable view.
 - При `DEVICE_TOKEN_REQUIRED` или `401` показывать технический экран "устройство не авторизовано".
 

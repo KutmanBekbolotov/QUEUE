@@ -14,7 +14,28 @@ public final class TerminalDtos {
             UUID departmentId,
             String code,
             String name,
-            List<UUID> serviceIds
+            List<UUID> serviceIds,
+            List<TerminalConfigServiceResponse> services,
+            List<TerminalConfigCategoryResponse> categories
+    ) {
+    }
+
+    public record LocalizedName(String ru, String ky) {
+    }
+
+    public record TerminalConfigServiceResponse(
+            UUID id,
+            String code,
+            LocalizedName name,
+            UUID categoryId,
+            String type
+    ) {
+    }
+
+    public record TerminalConfigCategoryResponse(
+            UUID id,
+            String type,
+            LocalizedName name
     ) {
     }
 

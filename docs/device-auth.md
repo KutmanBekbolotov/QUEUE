@@ -62,6 +62,34 @@ GET /api/v1/terminal/<terminal-id>/config
 X-Device-Token: <raw-device-token>
 ```
 
+Response:
+
+```json
+{
+  "terminalId": "<terminal-id>",
+  "departmentId": "<department-id>",
+  "code": "TERM-01",
+  "name": "Главный терминал",
+  "serviceIds": ["<service-id>"],
+  "services": [
+    {
+      "id": "<service-id>",
+      "code": "REG",
+      "name": {"ru": "Регистрация", "ky": "Регистрация"},
+      "categoryId": "<category-id>",
+      "type": "VS"
+    }
+  ],
+  "categories": [
+    {
+      "id": "<category-id>",
+      "type": "VS",
+      "name": {"ru": "Категория", "ky": "Категория"}
+    }
+  ]
+}
+```
+
 ```http
 POST /api/v1/terminal/<terminal-id>/tickets
 X-Device-Token: <raw-device-token>
