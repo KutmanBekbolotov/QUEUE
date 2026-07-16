@@ -61,7 +61,7 @@ public class UserController {
 
     @DeleteMapping("/{id}")
     @ResponseStatus(NO_CONTENT)
-    @PreAuthorize("hasAuthority('USER_UPDATE') or hasAuthority('USER_BLOCK')")
+    @PreAuthorize("hasAuthority('USER_DELETE')")
     void delete(@PathVariable UUID id, HttpServletRequest httpRequest) {
         userService.delete(id, httpRequest);
     }

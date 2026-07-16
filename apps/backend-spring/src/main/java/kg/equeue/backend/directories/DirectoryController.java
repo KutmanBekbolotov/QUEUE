@@ -115,7 +115,7 @@ public class DirectoryController {
 
     @DeleteMapping("/departments/{id}")
     @ResponseStatus(NO_CONTENT)
-    @PreAuthorize("hasAuthority('DEPARTMENT_UPDATE') or hasAuthority('DEPARTMENT_CLOSE')")
+    @PreAuthorize("hasAuthority('DEPARTMENT_DELETE')")
     void deleteDepartment(@PathVariable UUID id, HttpServletRequest httpRequest) {
         directoryService.deleteDepartment(id, httpRequest);
     }

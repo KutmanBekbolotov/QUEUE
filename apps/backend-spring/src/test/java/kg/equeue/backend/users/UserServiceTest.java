@@ -81,21 +81,19 @@ class UserServiceTest {
     }
 
     @Test
-    void deleteDisablesUserAndInvalidatesTokens() {
+    void deletePermanentlyRemovesUser() {
         UUID userId = UUID.randomUUID();
         UserEntity user = new UserEntity();
         user.setId(userId);
         user.setUsername("operator");
         user.setStatus(UserStatus.ACTIVE);
-        user.setTokenVersion(2);
         when(userRepository.findDetailedById(userId)).thenReturn(Optional.of(user));
-        when(userRepository.save(user)).thenReturn(user);
 
         userService.delete(userId, null);
 
-        assertThat(user.getStatus()).isEqualTo(UserStatus.DISABLED);
-        assertThat(user.getTokenVersion()).isEqualTo(3);
-        verify(userRepository).save(user);
+        verify(userRepository).delete(user);
+        verify(userRepository).flush();
+        verify(userRepository, never()).save(user);
     }
 
     @Test
@@ -114,9 +112,9 @@ class UserServiceTest {
 
         assertThatThrownBy(() -> userService.delete(userId, null))
                 .isInstanceOf(ApiException.class)
-                .hasMessage("Current user cannot deactivate own account");
+                .hasMessage("Current user cannot delete own account");
 
-        verify(userRepository, never()).save(user);
+        verify(userRepository, never()).delete(user);
     }
 
     @Test

@@ -16,12 +16,16 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.ResponseStatus;
+
+import static org.springframework.http.HttpStatus.NO_CONTENT;
 
 @RestController
 @RequestMapping("/api/v1/devices")
@@ -55,6 +59,13 @@ public class DeviceController {
         return deviceManagementService.updateTerminal(id, request, httpRequest);
     }
 
+    @DeleteMapping("/terminals/{id}")
+    @ResponseStatus(NO_CONTENT)
+    @PreAuthorize("hasAuthority('TERMINAL_DELETE')")
+    void deleteTerminal(@PathVariable UUID id, HttpServletRequest httpRequest) {
+        deviceManagementService.deleteTerminal(id, httpRequest);
+    }
+
     @PostMapping("/terminals/{id}/rotate-token")
     @PreAuthorize("hasAuthority('TERMINAL_CONFIGURE')")
     ResponseEntity<ProvisionedDeviceResponse> rotateTerminalToken(@PathVariable UUID id, HttpServletRequest httpRequest) {
@@ -74,6 +85,13 @@ public class DeviceController {
                                    @Valid @RequestBody UpdateTvDisplayRequest request,
                                    HttpServletRequest httpRequest) {
         return deviceManagementService.updateTvDisplay(id, request, httpRequest);
+    }
+
+    @DeleteMapping("/tv-displays/{id}")
+    @ResponseStatus(NO_CONTENT)
+    @PreAuthorize("hasAuthority('TV_DELETE')")
+    void deleteTvDisplay(@PathVariable UUID id, HttpServletRequest httpRequest) {
+        deviceManagementService.deleteTvDisplay(id, httpRequest);
     }
 
     @PostMapping("/tv-displays/{id}/rotate-token")

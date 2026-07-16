@@ -113,6 +113,15 @@ public class DeviceManagementService {
     }
 
     @Transactional
+    public void deleteTerminal(UUID id, HttpServletRequest httpRequest) {
+        TerminalEntity terminal = terminalRepository.findById(id)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "TERMINAL_NOT_FOUND", "Terminal was not found"));
+        terminalRepository.delete(terminal);
+        terminalRepository.flush();
+        auditService.write("TERMINAL_DELETE", "TERMINAL", id, "{\"deleted\":true}", httpRequest);
+    }
+
+    @Transactional
     public ProvisionedDeviceResponse createTvDisplay(CreateTvDisplayRequest request, HttpServletRequest httpRequest) {
         requireDepartment(request.departmentId());
         requireHallInDepartment(request.hallId(), request.departmentId());
@@ -169,6 +178,15 @@ public class DeviceManagementService {
         TvDisplayEntity saved = tvDisplayRepository.save(display);
         auditService.write("TV_TOKEN_ROTATE", "TV_DISPLAY", saved.getId(), "{\"token\":\"rotated\"}", httpRequest);
         return new ProvisionedDeviceResponse(tvDisplayResponse(saved), rawToken);
+    }
+
+    @Transactional
+    public void deleteTvDisplay(UUID id, HttpServletRequest httpRequest) {
+        TvDisplayEntity display = tvDisplayRepository.findById(id)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "TV_DISPLAY_NOT_FOUND", "TV display was not found"));
+        tvDisplayRepository.delete(display);
+        tvDisplayRepository.flush();
+        auditService.write("TV_DELETE", "TV_DISPLAY", id, "{\"deleted\":true}", httpRequest);
     }
 
     private void requireDepartment(UUID departmentId) {

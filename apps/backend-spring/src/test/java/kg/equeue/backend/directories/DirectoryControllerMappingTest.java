@@ -14,6 +14,7 @@ import kg.equeue.backend.directories.DirectoryDtos.ServiceRequest;
 import kg.equeue.backend.directories.DirectoryDtos.WindowRequest;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
@@ -34,7 +35,7 @@ class DirectoryControllerMappingTest {
 
     @Test
     void deleteDirectoryEndpointsReturnNoContent() throws Exception {
-        assertDelete("deleteDepartment", "/departments/{id}");
+        assertDelete("deleteDepartment", "/departments/{id}", "hasAuthority('DEPARTMENT_DELETE')");
         assertDelete("deleteHall", "/halls/{id}");
         assertDelete("deleteWindow", "/windows/{id}");
         assertDelete("deleteService", "/services/{id}");
@@ -55,6 +56,10 @@ class DirectoryControllerMappingTest {
     }
 
     private void assertDelete(String methodName, String path) throws Exception {
+        assertDelete(methodName, path, null);
+    }
+
+    private void assertDelete(String methodName, String path, String permission) throws Exception {
         Method method = DirectoryController.class.getDeclaredMethod(
                 methodName,
                 UUID.class,
@@ -67,5 +72,10 @@ class DirectoryControllerMappingTest {
         assertThat(mapping.value()).containsExactly(path);
         assertThat(responseStatus).isNotNull();
         assertThat(responseStatus.value()).isEqualTo(HttpStatus.NO_CONTENT);
+        if (permission != null) {
+            PreAuthorize preAuthorize = method.getAnnotation(PreAuthorize.class);
+            assertThat(preAuthorize).isNotNull();
+            assertThat(preAuthorize.value()).isEqualTo(permission);
+        }
     }
 }

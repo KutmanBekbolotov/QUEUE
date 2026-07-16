@@ -205,32 +205,9 @@ public class DirectoryService {
     public void deleteDepartment(UUID id, HttpServletRequest httpRequest) {
         DepartmentEntity entity = departmentOrThrow(id);
         departmentScopeService.requireDepartmentAccess(id);
-        entity.setActive(false);
-        entity.setClosed(true);
-        departmentRepository.save(entity);
-
-        List<OfficeRoomEntity> rooms = officeRoomRepository.findByDepartmentIdOrderByCodeAsc(id);
-        rooms.forEach(room -> room.setActive(false));
-        officeRoomRepository.saveAll(rooms);
-
-        List<HallEntity> halls = hallRepository.findByDepartmentIdOrderByCodeAsc(id);
-        halls.forEach(hall -> hall.setActive(false));
-        hallRepository.saveAll(halls);
-
-        List<ServiceWindowEntity> windows = serviceWindowRepository.findByDepartmentIdOrderByCodeAsc(id);
-        windows.forEach(this::deactivateWindow);
-        serviceWindowRepository.saveAll(windows);
-        deactivateWindowAssignments(windows);
-
-        List<DepartmentServiceEntity> departmentServices = departmentServiceRepository.findByDepartmentId(id);
-        departmentServices.forEach(service -> service.setActive(false));
-        departmentServiceRepository.saveAll(departmentServices);
-
-        List<EmployeeServiceAssignmentEntity> employeeServices = employeeServiceAssignmentRepository.findByDepartmentId(id);
-        employeeServices.forEach(assignment -> assignment.setActive(false));
-        employeeServiceAssignmentRepository.saveAll(employeeServices);
-
-        auditService.write("DEPARTMENT_DELETE", "DEPARTMENT", entity.getId(), simpleJson("active", "false"), httpRequest);
+        departmentRepository.delete(entity);
+        departmentRepository.flush();
+        auditService.write("DEPARTMENT_DELETE", "DEPARTMENT", id, simpleJson("deleted", "true"), httpRequest);
     }
 
     @Transactional(readOnly = true)

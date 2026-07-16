@@ -17,6 +17,7 @@ import kg.equeue.backend.halls.HallRepository;
 import kg.equeue.backend.terminals.TerminalEntity;
 import kg.equeue.backend.terminals.TerminalRepository;
 import kg.equeue.backend.tvdisplays.TvDisplayRepository;
+import kg.equeue.backend.tvdisplays.TvDisplayEntity;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.mock.web.MockHttpServletRequest;
@@ -89,5 +90,35 @@ class DeviceManagementServiceTest {
         assertThat(response.deviceToken()).isNotEqualTo("old-token");
         assertThat(deviceTokenService.matches(response.deviceToken(), terminal.getTokenHash())).isTrue();
         assertThat(deviceTokenService.matches("old-token", terminal.getTokenHash())).isFalse();
+    }
+
+    @Test
+    void deleteTerminalPermanentlyRemovesEntity() {
+        UUID terminalId = UUID.randomUUID();
+        TerminalEntity terminal = new TerminalEntity();
+        ReflectionTestUtils.setField(terminal, "id", terminalId);
+        when(terminalRepository.findById(terminalId)).thenReturn(Optional.of(terminal));
+
+        service.deleteTerminal(terminalId, new MockHttpServletRequest());
+
+        verify(terminalRepository).delete(terminal);
+        verify(terminalRepository).flush();
+        verify(auditService).write(
+                eq("TERMINAL_DELETE"), eq("TERMINAL"), eq(terminalId), eq("{\"deleted\":true}"), any());
+    }
+
+    @Test
+    void deleteTvDisplayPermanentlyRemovesEntity() {
+        UUID displayId = UUID.randomUUID();
+        TvDisplayEntity display = new TvDisplayEntity();
+        ReflectionTestUtils.setField(display, "id", displayId);
+        when(tvDisplayRepository.findById(displayId)).thenReturn(Optional.of(display));
+
+        service.deleteTvDisplay(displayId, new MockHttpServletRequest());
+
+        verify(tvDisplayRepository).delete(display);
+        verify(tvDisplayRepository).flush();
+        verify(auditService).write(
+                eq("TV_DELETE"), eq("TV_DISPLAY"), eq(displayId), eq("{\"deleted\":true}"), any());
     }
 }

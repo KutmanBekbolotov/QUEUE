@@ -13,6 +13,7 @@ import java.util.UUID;
 import kg.equeue.backend.audit.AuditService;
 import kg.equeue.backend.common.DepartmentScopeService;
 import kg.equeue.backend.departmentservices.DepartmentServiceRepository;
+import kg.equeue.backend.departments.DepartmentEntity;
 import kg.equeue.backend.departments.DepartmentRepository;
 import kg.equeue.backend.employeeserviceassignments.EmployeeServiceAssignmentRepository;
 import kg.equeue.backend.employeewindowassignments.EmployeeWindowAssignmentEntity;
@@ -82,6 +83,25 @@ class DirectoryServiceTest {
         assertThat(auditService.action).isEqualTo("WINDOW_DELETE");
         assertThat(auditService.entityType).isEqualTo("WINDOW");
         assertThat(auditService.entityId).isEqualTo(windowId);
+        assertThat(auditService.newValue).isEqualTo("{\"deleted\":\"true\"}");
+    }
+
+    @Test
+    void deleteDepartmentHardDeletesDepartmentAndReliesOnDatabaseCascades() {
+        UUID departmentId = UUID.randomUUID();
+        DepartmentEntity department = new DepartmentEntity();
+        ReflectionTestUtils.setField(department, "id", departmentId);
+        when(departmentRepository.findById(departmentId)).thenReturn(Optional.of(department));
+
+        directoryService.deleteDepartment(departmentId, null);
+
+        assertThat(departmentScopeService.requiredDepartmentId).isEqualTo(departmentId);
+        verify(departmentRepository).delete(department);
+        verify(departmentRepository).flush();
+        verify(departmentRepository, never()).save(any(DepartmentEntity.class));
+        assertThat(auditService.action).isEqualTo("DEPARTMENT_DELETE");
+        assertThat(auditService.entityType).isEqualTo("DEPARTMENT");
+        assertThat(auditService.entityId).isEqualTo(departmentId);
         assertThat(auditService.newValue).isEqualTo("{\"deleted\":\"true\"}");
     }
 
