@@ -18,6 +18,7 @@ import kg.equeue.backend.directories.DirectoryDtos.DepartmentResponse;
 import kg.equeue.backend.directories.DirectoryDtos.DepartmentServiceRequest;
 import kg.equeue.backend.directories.DirectoryDtos.DepartmentServiceResponse;
 import kg.equeue.backend.directories.DirectoryDtos.DepartmentStatusRequest;
+import kg.equeue.backend.directories.DirectoryDtos.EmployeeServiceAssignmentResponse;
 import kg.equeue.backend.directories.DirectoryDtos.HallRequest;
 import kg.equeue.backend.directories.DirectoryDtos.HallResponse;
 import kg.equeue.backend.directories.DirectoryDtos.OfficeRoomRequest;
@@ -555,6 +556,26 @@ public class DirectoryService {
         auditService.write("SERVICE_ASSIGN_TO_EMPLOYEE", "EMPLOYEE_SERVICE_ASSIGNMENT", saved.getId(), simpleJson("serviceId", serviceId.toString()), httpRequest);
     }
 
+    @Transactional(readOnly = true)
+    public List<EmployeeServiceAssignmentResponse> employeeServices(UUID employeeId, UUID departmentId) {
+        if (departmentId != null) {
+            departmentOrThrow(departmentId);
+            departmentScopeService.requireDepartmentAccess(departmentId);
+            return employeeServiceAssignmentRepository
+                    .findByUserIdAndDepartmentIdAndActiveTrueOrderByServiceIdAsc(employeeId, departmentId)
+                    .stream()
+                    .map(this::employeeServiceAssignmentResponse)
+                    .toList();
+        }
+
+        return employeeServiceAssignmentRepository
+                .findByUserIdAndActiveTrueOrderByServiceIdAsc(employeeId)
+                .stream()
+                .peek(assignment -> departmentScopeService.requireDepartmentAccess(assignment.getDepartmentId()))
+                .map(this::employeeServiceAssignmentResponse)
+                .toList();
+    }
+
     @Transactional
     public void removeServiceFromEmployee(UUID employeeId, UUID serviceId, UUID departmentId, HttpServletRequest httpRequest) {
         List<EmployeeServiceAssignmentEntity> assignments = employeeServiceAssignmentRepository.findByUserIdAndServiceId(employeeId, serviceId);
@@ -566,6 +587,16 @@ public class DirectoryService {
                     employeeServiceAssignmentRepository.save(assignment);
                     auditService.write("SERVICE_REMOVE_FROM_EMPLOYEE", "EMPLOYEE_SERVICE_ASSIGNMENT", assignment.getId(), simpleJson("serviceId", serviceId.toString()), httpRequest);
                 });
+    }
+
+    private EmployeeServiceAssignmentResponse employeeServiceAssignmentResponse(EmployeeServiceAssignmentEntity entity) {
+        return new EmployeeServiceAssignmentResponse(
+                entity.getId(),
+                entity.getUserId(),
+                entity.getDepartmentId(),
+                entity.getServiceId(),
+                entity.isActive()
+        );
     }
 
     private void applyDepartment(DepartmentEntity entity, DepartmentRequest request) {

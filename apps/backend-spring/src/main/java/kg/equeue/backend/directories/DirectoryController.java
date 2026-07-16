@@ -13,6 +13,7 @@ import kg.equeue.backend.directories.DirectoryDtos.DepartmentResponse;
 import kg.equeue.backend.directories.DirectoryDtos.DepartmentServiceRequest;
 import kg.equeue.backend.directories.DirectoryDtos.DepartmentServiceResponse;
 import kg.equeue.backend.directories.DirectoryDtos.DepartmentStatusRequest;
+import kg.equeue.backend.directories.DirectoryDtos.EmployeeServiceAssignmentResponse;
 import kg.equeue.backend.directories.DirectoryDtos.HallRequest;
 import kg.equeue.backend.directories.DirectoryDtos.HallResponse;
 import kg.equeue.backend.directories.DirectoryDtos.OfficeRoomRequest;
@@ -318,6 +319,13 @@ public class DirectoryController {
                                  @Valid @RequestBody AssignEmployeeServiceRequest request,
                                  HttpServletRequest httpRequest) {
         directoryService.assignServiceToEmployee(employeeId, serviceId, request, httpRequest);
+    }
+
+    @GetMapping("/employees/{employeeId}/services")
+    @PreAuthorize("hasAuthority('SERVICE_READ') or hasAuthority('SERVICE_ASSIGN_TO_EMPLOYEE')")
+    List<EmployeeServiceAssignmentResponse> employeeServices(@PathVariable UUID employeeId,
+                                                             @RequestParam(required = false) UUID departmentId) {
+        return directoryService.employeeServices(employeeId, departmentId);
     }
 
     @DeleteMapping("/employees/{employeeId}/services/{serviceId}")

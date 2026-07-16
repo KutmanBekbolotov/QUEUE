@@ -9,6 +9,7 @@ public interface EmployeeServiceAssignmentRepository extends JpaRepository<Emplo
     Optional<EmployeeServiceAssignmentEntity> findByUserIdAndDepartmentIdAndServiceId(UUID userId, UUID departmentId, UUID serviceId);
     List<EmployeeServiceAssignmentEntity> findByUserId(UUID userId);
     List<EmployeeServiceAssignmentEntity> findByUserIdAndActiveTrueOrderByServiceIdAsc(UUID userId);
+    List<EmployeeServiceAssignmentEntity> findByUserIdAndDepartmentIdAndActiveTrueOrderByServiceIdAsc(UUID userId, UUID departmentId);
     List<EmployeeServiceAssignmentEntity> findByUserIdAndServiceId(UUID userId, UUID serviceId);
     List<EmployeeServiceAssignmentEntity> findByDepartmentId(UUID departmentId);
     List<EmployeeServiceAssignmentEntity> findByServiceId(UUID serviceId);

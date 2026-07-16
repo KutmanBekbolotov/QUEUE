@@ -147,5 +147,13 @@ public final class DirectoryDtos {
 
     public record AssignEmployeeServiceRequest(@NotNull UUID departmentId) {
     }
-}
 
+    public record EmployeeServiceAssignmentResponse(
+            UUID id,
+            UUID userId,
+            UUID departmentId,
+            UUID serviceId,
+            boolean active
+    ) {
+    }
+}
