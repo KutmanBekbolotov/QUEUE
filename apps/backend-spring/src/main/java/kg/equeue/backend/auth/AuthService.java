@@ -81,7 +81,7 @@ public class AuthService {
     @Transactional
     public AuthResponse refresh(String rawRefreshToken, HttpServletRequest httpRequest) {
         String hash = hash(rawRefreshToken);
-        RefreshTokenEntity existing = refreshTokenRepository.findByTokenHash(hash)
+        RefreshTokenEntity existing = refreshTokenRepository.findWithLockByTokenHash(hash)
                 .orElseThrow(() -> new ApiException(HttpStatus.UNAUTHORIZED, "INVALID_REFRESH_TOKEN", "Invalid refresh token"));
         Instant now = Instant.now();
         if (!existing.isActive(now)) {
@@ -104,7 +104,7 @@ public class AuthService {
     @Transactional
     public void logout(String rawRefreshToken) {
         String hash = hash(rawRefreshToken);
-        refreshTokenRepository.findByTokenHash(hash).ifPresent(token -> {
+        refreshTokenRepository.findWithLockByTokenHash(hash).ifPresent(token -> {
             if (token.getRevokedAt() == null) {
                 token.setRevokedAt(Instant.now());
                 refreshTokenRepository.save(token);

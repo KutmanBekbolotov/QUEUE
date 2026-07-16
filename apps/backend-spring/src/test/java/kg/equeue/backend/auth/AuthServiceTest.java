@@ -8,6 +8,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -115,6 +116,27 @@ class AuthServiceTest {
         verify(loginAuditLogRepository).save(auditCaptor.capture());
         assertThat(auditCaptor.getValue().isSuccess()).isFalse();
         assertThat(auditCaptor.getValue().getReason()).isEqualTo("USER_NOT_ACTIVE");
+    }
+
+    @Test
+    void refreshLocksAndRotatesRefreshToken() {
+        String rawRefreshToken = "current-refresh-token";
+        UserEntity user = activeUser();
+        RefreshTokenEntity existing = new RefreshTokenEntity();
+        existing.setUser(user);
+        existing.setTokenHash(authService.hash(rawRefreshToken));
+        existing.setExpiresAt(Instant.now().plusSeconds(300));
+        when(refreshTokenRepository.findWithLockByTokenHash(existing.getTokenHash()))
+                .thenReturn(Optional.of(existing));
+        when(userRepository.findDetailedById(user.getId())).thenReturn(Optional.of(user));
+
+        AuthResponse response = authService.refresh(rawRefreshToken, new MockHttpServletRequest());
+
+        verify(refreshTokenRepository).findWithLockByTokenHash(existing.getTokenHash());
+        assertThat(response.accessToken()).isNotBlank();
+        assertThat(response.refreshToken()).isNotBlank().isNotEqualTo(rawRefreshToken);
+        assertThat(existing.getRevokedAt()).isNotNull();
+        assertThat(existing.getReplacedByHash()).isEqualTo(authService.hash(response.refreshToken()));
     }
 
     @Test

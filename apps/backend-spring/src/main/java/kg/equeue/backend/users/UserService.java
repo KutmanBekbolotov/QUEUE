@@ -132,17 +132,19 @@ public class UserService {
             user.setPhone(request.phone());
         }
         if (request.roleCodes() != null) {
-            user.setRoles(loadRoles(request.roleCodes()));
-            invalidateTokens = true;
+            HashSet<RoleEntity> roles = loadRoles(request.roleCodes());
+            boolean rolesChanged = !roleCodes(user.getRoles()).equals(roleCodes(roles));
+            user.setRoles(roles);
+            invalidateTokens = invalidateTokens || rolesChanged;
         }
         if (request.departmentId() != null) {
             requireDepartmentExists(request.departmentId());
             departmentChanged = !Objects.equals(effectiveDepartmentId, request.departmentId());
             effectiveDepartmentId = request.departmentId();
-            invalidateTokens = true;
+            invalidateTokens = invalidateTokens || departmentChanged;
         }
         requireOperatorDepartment(user.getRoles(), effectiveDepartmentId);
-        if (request.departmentId() != null) {
+        if (departmentChanged) {
             departmentScopeRepository.replacePrimaryDepartment(id, request.departmentId());
         }
         if (request.windowId() != null || departmentChanged) {
@@ -228,6 +230,10 @@ public class UserService {
             throw new ApiException(HttpStatus.BAD_REQUEST, "OPERATOR_DEPARTMENT_REQUIRED",
                     "departmentId is required for operator users");
         }
+    }
+
+    private Set<String> roleCodes(Set<RoleEntity> roles) {
+        return roles.stream().map(RoleEntity::getCode).collect(java.util.stream.Collectors.toSet());
     }
 
     private UserResponse toResponse(UserEntity user) {

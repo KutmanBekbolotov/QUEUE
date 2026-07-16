@@ -137,7 +137,7 @@ class UserServiceTest {
         when(passwordEncoder.encode("NewPassword123")).thenReturn("encoded-password");
         when(roleRepository.findByCodeIn(anySet())).thenReturn(List.of(role));
         departmentScopeRepository.existingDepartmentId = departmentId;
-        departmentScopeRepository.primaryDepartmentId = departmentId;
+        departmentScopeRepository.primaryDepartmentId = UUID.randomUUID();
         when(userRepository.save(user)).thenReturn(user);
 
         var response = userService.update(
@@ -169,6 +169,50 @@ class UserServiceTest {
         verify(userAssignmentService).replaceWindow(userId, departmentId, windowId.toString());
         verify(userAssignmentService).replaceServices(userId, departmentId, java.util.Set.of("VS", "TS"));
         verify(userRepository).save(user);
+    }
+
+    @Test
+    void assignmentOnlyUpdateKeepsExistingSessionValid() {
+        UUID userId = UUID.randomUUID();
+        UUID departmentId = UUID.randomUUID();
+        UUID windowId = UUID.randomUUID();
+        RoleEntity existingRole = new RoleEntity();
+        existingRole.setCode("OPERATOR");
+        RoleEntity submittedRole = new RoleEntity();
+        submittedRole.setCode("OPERATOR");
+        UserEntity user = new UserEntity();
+        user.setId(userId);
+        user.setUsername("operator");
+        user.setStatus(UserStatus.ACTIVE);
+        user.setTokenVersion(3);
+        user.getRoles().add(existingRole);
+
+        when(userRepository.findDetailedById(userId)).thenReturn(Optional.of(user));
+        when(roleRepository.findByCodeIn(anySet())).thenReturn(List.of(submittedRole));
+        when(userRepository.save(user)).thenReturn(user);
+        departmentScopeRepository.existingDepartmentId = departmentId;
+        departmentScopeRepository.primaryDepartmentId = departmentId;
+
+        userService.update(
+                userId,
+                new UpdateUserRequest(
+                        "operator",
+                        null,
+                        null,
+                        null,
+                        null,
+                        departmentId,
+                        java.util.Set.of("OPERATOR"),
+                        windowId.toString(),
+                        java.util.Set.of("VS")
+                ),
+                null
+        );
+
+        assertThat(user.getTokenVersion()).isEqualTo(3);
+        assertThat(departmentScopeRepository.replacedUserId).isNull();
+        verify(userAssignmentService).replaceWindow(userId, departmentId, windowId.toString());
+        verify(userAssignmentService).replaceServices(userId, departmentId, java.util.Set.of("VS"));
     }
 
     @Test
