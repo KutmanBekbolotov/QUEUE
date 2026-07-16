@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anySet;
+import static org.mockito.ArgumentMatchers.nullable;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -45,7 +46,7 @@ class UserServiceTest {
     );
 
     {
-        when(userAssignmentService.assignments(any(UUID.class)))
+        when(userAssignmentService.assignments(any(UUID.class), nullable(UUID.class)))
                 .thenReturn(UserAssignmentService.AssignmentSnapshot.empty());
     }
 
@@ -218,7 +219,7 @@ class UserServiceTest {
                 List.of(),
                 List.of("VS", "TS")
         );
-        when(userAssignmentService.assignments(userId)).thenReturn(assignments);
+        when(userAssignmentService.assignments(userId, departmentId)).thenReturn(assignments);
 
         var response = userService.create(
                 new CreateUserRequest(
@@ -309,6 +310,7 @@ class UserServiceTest {
         public void replacePrimaryDepartment(UUID userId, UUID departmentId) {
             replacedUserId = userId;
             replacedDepartmentId = departmentId;
+            primaryDepartmentId = departmentId;
         }
     }
 }

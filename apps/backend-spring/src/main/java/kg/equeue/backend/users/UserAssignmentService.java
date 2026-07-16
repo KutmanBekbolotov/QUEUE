@@ -45,23 +45,43 @@ public class UserAssignmentService {
 
     @Transactional(readOnly = true)
     public AssignmentSnapshot assignments(UUID userId) {
+        return assignments(userId, null);
+    }
+
+    @Transactional(readOnly = true)
+    public AssignmentSnapshot assignments(UUID userId, UUID departmentId) {
         UUID windowId = windowAssignmentRepository
-                .findFirstByUserIdAndActiveTrueOrderByAssignedAtDesc(userId)
+                .findByUserIdAndActiveTrueOrderByAssignedAtDesc(userId)
+                .stream()
                 .map(EmployeeWindowAssignmentEntity::getServiceWindowId)
+                .map(serviceWindowRepository::findById)
+                .flatMap(java.util.Optional::stream)
+                .filter(ServiceWindowEntity::isActive)
+                .filter(window -> departmentId == null || departmentId.equals(window.getDepartmentId()))
+                .map(ServiceWindowEntity::getId)
+                .findFirst()
                 .orElse(null);
 
-        List<UUID> serviceIds = serviceAssignmentRepository
-                .findByUserIdAndActiveTrueOrderByServiceIdAsc(userId)
-                .stream()
+        List<EmployeeServiceAssignmentEntity> serviceAssignments = departmentId == null
+                ? serviceAssignmentRepository.findByUserIdAndActiveTrueOrderByServiceIdAsc(userId)
+                : serviceAssignmentRepository.findByUserIdAndDepartmentIdAndActiveTrueOrderByServiceIdAsc(userId, departmentId);
+        List<UUID> assignedServiceIds = serviceAssignments.stream()
                 .map(EmployeeServiceAssignmentEntity::getServiceId)
                 .distinct()
                 .sorted(Comparator.comparing(UUID::toString))
                 .toList();
-        Map<UUID, String> codesById = new LinkedHashMap<>();
-        queueServiceRepository.findAllById(serviceIds)
-                .forEach(service -> codesById.put(service.getId(), service.getCode()));
+        Map<UUID, QueueServiceEntity> activeServicesById = new LinkedHashMap<>();
+        queueServiceRepository.findAllById(assignedServiceIds).stream()
+                .filter(QueueServiceEntity::isActive)
+                .filter(service -> departmentId == null
+                        || departmentServiceRepository.existsByDepartmentIdAndServiceIdAndActiveTrue(departmentId, service.getId()))
+                .forEach(service -> activeServicesById.put(service.getId(), service));
+        List<UUID> serviceIds = assignedServiceIds.stream()
+                .filter(activeServicesById::containsKey)
+                .toList();
         List<String> serviceCodes = serviceIds.stream()
-                .map(codesById::get)
+                .map(activeServicesById::get)
+                .map(QueueServiceEntity::getCode)
                 .filter(code -> code != null)
                 .toList();
         return new AssignmentSnapshot(windowId, serviceIds, serviceCodes);
@@ -69,27 +89,27 @@ public class UserAssignmentService {
 
     @Transactional
     public void replaceWindow(UUID userId, UUID departmentId, String windowIdentifier) {
-        List<EmployeeWindowAssignmentEntity> assignments = new ArrayList<>(windowAssignmentRepository.findByUserId(userId));
-        assignments.forEach(assignment -> assignment.setActive(false));
-
         String normalized = normalize(windowIdentifier);
+        ServiceWindowEntity window = null;
         if (normalized != null) {
             requireDepartment(departmentId);
-            ServiceWindowEntity window = resolveWindow(normalized, departmentId);
-            EmployeeWindowAssignmentEntity selected = assignments.stream()
-                    .filter(assignment -> assignment.getServiceWindowId().equals(window.getId()))
-                    .findFirst()
-                    .orElseGet(() -> {
-                        EmployeeWindowAssignmentEntity assignment = new EmployeeWindowAssignmentEntity();
-                        assignment.setUserId(userId);
-                        assignment.setServiceWindowId(window.getId());
-                        assignments.add(assignment);
-                        return assignment;
-                    });
-            selected.setActive(true);
-            selected.setAssignedAt(Instant.now());
+            window = resolveWindow(normalized, departmentId);
         }
-        windowAssignmentRepository.saveAll(assignments);
+
+        windowAssignmentRepository.deactivateActiveByUserId(userId);
+        if (window == null) {
+            return;
+        }
+
+        windowAssignmentRepository.deactivateActiveByServiceWindowId(window.getId());
+        EmployeeWindowAssignmentEntity selected = windowAssignmentRepository
+                .findByUserIdAndServiceWindowId(userId, window.getId())
+                .orElseGet(EmployeeWindowAssignmentEntity::new);
+        selected.setUserId(userId);
+        selected.setServiceWindowId(window.getId());
+        selected.setActive(true);
+        selected.setAssignedAt(Instant.now());
+        windowAssignmentRepository.save(selected);
     }
 
     @Transactional
@@ -117,12 +137,15 @@ public class UserAssignmentService {
     }
 
     private ServiceWindowEntity resolveWindow(String identifier, UUID departmentId) {
-        ServiceWindowEntity window = parseUuid(identifier)
-                .flatMap(serviceWindowRepository::findById)
-                .orElseGet(() -> serviceWindowRepository.findByDepartmentIdOrderByCodeAsc(departmentId).stream()
-                        .filter(candidate -> candidate.getCode().equalsIgnoreCase(identifier))
-                        .findFirst()
-                        .orElseThrow(() -> new ApiException(HttpStatus.BAD_REQUEST, "WINDOW_NOT_FOUND", "Assigned window was not found")));
+        UUID windowId = parseUuid(identifier).orElseGet(() -> serviceWindowRepository
+                .findByDepartmentIdOrderByCodeAsc(departmentId)
+                .stream()
+                .filter(item -> item.getCode().equalsIgnoreCase(identifier))
+                .map(ServiceWindowEntity::getId)
+                .findFirst()
+                .orElseThrow(() -> new ApiException(HttpStatus.BAD_REQUEST, "WINDOW_NOT_FOUND", "Assigned window was not found")));
+        ServiceWindowEntity window = serviceWindowRepository.findWithLockById(windowId)
+                .orElseThrow(() -> new ApiException(HttpStatus.BAD_REQUEST, "WINDOW_NOT_FOUND", "Assigned window was not found"));
         if (!departmentId.equals(window.getDepartmentId())) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "WINDOW_DEPARTMENT_MISMATCH",
                     "Assigned window does not belong to the user department");

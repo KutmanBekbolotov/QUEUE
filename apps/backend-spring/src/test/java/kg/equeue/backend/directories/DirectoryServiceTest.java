@@ -15,6 +15,7 @@ import kg.equeue.backend.common.DepartmentScopeService;
 import kg.equeue.backend.departmentservices.DepartmentServiceRepository;
 import kg.equeue.backend.departments.DepartmentRepository;
 import kg.equeue.backend.employeeserviceassignments.EmployeeServiceAssignmentRepository;
+import kg.equeue.backend.employeewindowassignments.EmployeeWindowAssignmentEntity;
 import kg.equeue.backend.employeewindowassignments.EmployeeWindowAssignmentRepository;
 import kg.equeue.backend.halls.HallRepository;
 import kg.equeue.backend.officerooms.OfficeRoomRepository;
@@ -23,6 +24,8 @@ import kg.equeue.backend.servicecategories.ServiceCategoryRepository;
 import kg.equeue.backend.services.QueueServiceRepository;
 import kg.equeue.backend.servicewindows.ServiceWindowEntity;
 import kg.equeue.backend.servicewindows.ServiceWindowRepository;
+import kg.equeue.backend.users.UserAssignmentService;
+import kg.equeue.backend.users.UserDepartmentScopeRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
 
@@ -38,6 +41,8 @@ class DirectoryServiceTest {
     private final DepartmentServiceRepository departmentServiceRepository = mock(DepartmentServiceRepository.class);
     private final EmployeeServiceAssignmentRepository employeeServiceAssignmentRepository = mock(EmployeeServiceAssignmentRepository.class);
     private final EmployeeWindowAssignmentRepository employeeWindowAssignmentRepository = mock(EmployeeWindowAssignmentRepository.class);
+    private final UserAssignmentService userAssignmentService = mock(UserAssignmentService.class);
+    private final UserDepartmentScopeRepository userDepartmentScopeRepository = mock(UserDepartmentScopeRepository.class);
     private final FakeDepartmentScopeService departmentScopeService = new FakeDepartmentScopeService();
     private final CapturingAuditService auditService = new CapturingAuditService();
     private final DirectoryService directoryService = new DirectoryService(
@@ -51,6 +56,8 @@ class DirectoryServiceTest {
             departmentServiceRepository,
             employeeServiceAssignmentRepository,
             employeeWindowAssignmentRepository,
+            userAssignmentService,
+            userDepartmentScopeRepository,
             departmentScopeService,
             auditService
     );
@@ -76,6 +83,35 @@ class DirectoryServiceTest {
         assertThat(auditService.entityType).isEqualTo("WINDOW");
         assertThat(auditService.entityId).isEqualTo(windowId);
         assertThat(auditService.newValue).isEqualTo("{\"deleted\":\"true\"}");
+    }
+
+    @Test
+    void assignEmployeeToWindowUsesCanonicalAssignmentAndReturnsEmployee() {
+        UUID windowId = UUID.randomUUID();
+        UUID departmentId = UUID.randomUUID();
+        UUID employeeId = UUID.randomUUID();
+        ServiceWindowEntity window = new ServiceWindowEntity();
+        ReflectionTestUtils.setField(window, "id", windowId);
+        window.setDepartmentId(departmentId);
+        window.setCode("01");
+        window.setDisplayName("Window 01");
+        EmployeeWindowAssignmentEntity assignment = new EmployeeWindowAssignmentEntity();
+        assignment.setUserId(employeeId);
+        assignment.setServiceWindowId(windowId);
+        when(serviceWindowRepository.findById(windowId)).thenReturn(Optional.of(window));
+        when(userDepartmentScopeRepository.primaryDepartmentId(employeeId)).thenReturn(departmentId);
+        when(employeeWindowAssignmentRepository.findFirstByServiceWindowIdAndActiveTrueOrderByAssignedAtDesc(windowId))
+                .thenReturn(Optional.of(assignment));
+
+        var response = directoryService.assignEmployeeToWindow(
+                windowId,
+                new DirectoryDtos.AssignEmployeeToWindowRequest(employeeId),
+                null
+        );
+
+        verify(userAssignmentService).replaceWindow(employeeId, departmentId, windowId.toString());
+        assertThat(response.employeeId()).isEqualTo(employeeId);
+        assertThat(response.id()).isEqualTo(windowId);
     }
 
     private static class FakeDepartmentScopeService extends DepartmentScopeService {

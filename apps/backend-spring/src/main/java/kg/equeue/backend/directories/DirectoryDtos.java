@@ -73,6 +73,7 @@ public final class DirectoryDtos {
             UUID id,
             UUID departmentId,
             UUID hallId,
+            UUID employeeId,
             String code,
             String displayName,
             boolean active,

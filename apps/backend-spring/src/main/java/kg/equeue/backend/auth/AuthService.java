@@ -9,6 +9,7 @@ import java.util.Base64;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collectors;
 import kg.equeue.backend.audit.LoginAuditLogEntity;
 import kg.equeue.backend.audit.LoginAuditLogRepository;
@@ -115,14 +116,15 @@ public class AuthService {
     public MeResponse me(AuthenticatedPrincipal principal) {
         UserEntity user = userRepository.findDetailedById(principal.id())
                 .orElseThrow(() -> new ApiException(HttpStatus.UNAUTHORIZED, "USER_NOT_FOUND", "Authenticated user was not found"));
-        UserAssignmentService.AssignmentSnapshot assignments = userAssignmentService.assignments(user.getId());
+        UUID departmentId = departmentScopeRepository.primaryDepartmentId(user.getId());
+        UserAssignmentService.AssignmentSnapshot assignments = userAssignmentService.assignments(user.getId(), departmentId);
         return new MeResponse(
                 user.getId(),
                 user.getUsername(),
                 user.getFullName(),
                 user.getEmail(),
                 user.getPhone(),
-                departmentScopeRepository.primaryDepartmentId(user.getId()),
+                departmentId,
                 assignments.windowId(),
                 assignments.serviceIds(),
                 assignments.serviceCodes(),
@@ -145,7 +147,8 @@ public class AuthService {
     private AuthResponse response(UserEntity user, String rawRefreshToken) {
         String accessToken = jwtService.createAccessToken(user);
         Instant expiresAt = Instant.now().plus(securityProperties.getJwt().getAccessTokenTtl());
-        UserAssignmentService.AssignmentSnapshot assignments = userAssignmentService.assignments(user.getId());
+        UUID departmentId = departmentScopeRepository.primaryDepartmentId(user.getId());
+        UserAssignmentService.AssignmentSnapshot assignments = userAssignmentService.assignments(user.getId(), departmentId);
         return new AuthResponse(
                 accessToken,
                 rawRefreshToken,
@@ -158,7 +161,7 @@ public class AuthService {
                 user.getFullName(),
                 user.getEmail(),
                 user.getPhone(),
-                departmentScopeRepository.primaryDepartmentId(user.getId()),
+                departmentId,
                 assignments.windowId(),
                 assignments.serviceIds(),
                 assignments.serviceCodes(),

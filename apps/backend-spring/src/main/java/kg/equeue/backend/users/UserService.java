@@ -232,14 +232,15 @@ public class UserService {
 
     private UserResponse toResponse(UserEntity user) {
         UserEntity detailed = user.getRoles().isEmpty() ? userRepository.findDetailedById(user.getId()).orElse(user) : user;
-        UserAssignmentService.AssignmentSnapshot assignments = userAssignmentService.assignments(detailed.getId());
+        UUID departmentId = departmentScopeRepository.primaryDepartmentId(detailed.getId());
+        UserAssignmentService.AssignmentSnapshot assignments = userAssignmentService.assignments(detailed.getId(), departmentId);
         return new UserResponse(
                 detailed.getId(),
                 detailed.getUsername(),
                 detailed.getFullName(),
                 detailed.getEmail(),
                 detailed.getPhone(),
-                departmentScopeRepository.primaryDepartmentId(detailed.getId()),
+                departmentId,
                 assignments.windowId(),
                 assignments.serviceIds(),
                 assignments.serviceCodes(),

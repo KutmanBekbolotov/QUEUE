@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.when;
 
 import java.util.List;
@@ -46,20 +47,30 @@ class UserAssignmentServiceTest {
         when(window.getId()).thenReturn(windowId);
         when(window.getDepartmentId()).thenReturn(departmentId);
         when(window.isActive()).thenReturn(true);
-        when(windowAssignmentRepository.findByUserId(userId)).thenReturn(List.of());
-        when(serviceWindowRepository.findById(windowId)).thenReturn(Optional.of(window));
+        when(serviceWindowRepository.findWithLockById(windowId)).thenReturn(Optional.of(window));
+        when(windowAssignmentRepository.findByUserIdAndServiceWindowId(userId, windowId)).thenReturn(Optional.empty());
 
         userAssignmentService.replaceWindow(userId, departmentId, windowId.toString());
 
-        @SuppressWarnings("unchecked")
-        ArgumentCaptor<Iterable<EmployeeWindowAssignmentEntity>> captor = ArgumentCaptor.forClass(Iterable.class);
-        verify(windowAssignmentRepository).saveAll(captor.capture());
-        List<EmployeeWindowAssignmentEntity> saved = toList(captor.getValue());
-        assertThat(saved).singleElement().satisfies(assignment -> {
+        ArgumentCaptor<EmployeeWindowAssignmentEntity> captor = ArgumentCaptor.forClass(EmployeeWindowAssignmentEntity.class);
+        verify(windowAssignmentRepository).deactivateActiveByUserId(userId);
+        verify(windowAssignmentRepository).deactivateActiveByServiceWindowId(windowId);
+        verify(windowAssignmentRepository).save(captor.capture());
+        assertThat(captor.getValue()).satisfies(assignment -> {
             assertThat(assignment.getUserId()).isEqualTo(userId);
             assertThat(assignment.getServiceWindowId()).isEqualTo(windowId);
             assertThat(assignment.isActive()).isTrue();
         });
+    }
+
+    @Test
+    void replaceWindowWithBlankIdentifierClearsCurrentAssignment() {
+        UUID userId = UUID.randomUUID();
+
+        userAssignmentService.replaceWindow(userId, UUID.randomUUID(), " ");
+
+        verify(windowAssignmentRepository).deactivateActiveByUserId(userId);
+        verify(windowAssignmentRepository, never()).save(any(EmployeeWindowAssignmentEntity.class));
     }
 
     @Test
@@ -121,8 +132,12 @@ class UserAssignmentServiceTest {
         EmployeeServiceAssignmentEntity serviceAssignment = new EmployeeServiceAssignmentEntity();
         serviceAssignment.setServiceId(serviceId);
         QueueServiceEntity service = service(serviceId, "VS");
-        when(windowAssignmentRepository.findFirstByUserIdAndActiveTrueOrderByAssignedAtDesc(userId))
-                .thenReturn(Optional.of(windowAssignment));
+        ServiceWindowEntity window = mock(ServiceWindowEntity.class);
+        when(window.getId()).thenReturn(windowId);
+        when(window.isActive()).thenReturn(true);
+        when(windowAssignmentRepository.findByUserIdAndActiveTrueOrderByAssignedAtDesc(userId))
+                .thenReturn(List.of(windowAssignment));
+        when(serviceWindowRepository.findById(windowId)).thenReturn(Optional.of(window));
         when(serviceAssignmentRepository.findByUserIdAndActiveTrueOrderByServiceIdAsc(userId))
                 .thenReturn(List.of(serviceAssignment));
         when(queueServiceRepository.findAllById(any())).thenReturn(List.of(service));

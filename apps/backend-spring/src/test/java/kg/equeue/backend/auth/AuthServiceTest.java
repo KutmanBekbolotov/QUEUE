@@ -3,6 +3,7 @@ package kg.equeue.backend.auth;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -48,7 +49,7 @@ class AuthServiceTest {
     private final AuthService authService;
 
     AuthServiceTest() {
-        when(userAssignmentService.assignments(any(UUID.class)))
+        when(userAssignmentService.assignments(any(UUID.class), eq(departmentId)))
                 .thenReturn(new UserAssignmentService.AssignmentSnapshot(windowId, List.of(serviceId), List.of("VS")));
         authService = new AuthService(
                 userRepository,

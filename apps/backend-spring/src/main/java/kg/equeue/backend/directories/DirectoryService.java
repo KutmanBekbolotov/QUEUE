@@ -49,6 +49,8 @@ import kg.equeue.backend.services.QueueServiceRepository;
 import kg.equeue.backend.servicewindows.ServiceWindowEntity;
 import kg.equeue.backend.servicewindows.ServiceWindowRepository;
 import kg.equeue.backend.servicewindows.WindowStatus;
+import kg.equeue.backend.users.UserAssignmentService;
+import kg.equeue.backend.users.UserDepartmentScopeRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -66,6 +68,8 @@ public class DirectoryService {
     private final DepartmentServiceRepository departmentServiceRepository;
     private final EmployeeServiceAssignmentRepository employeeServiceAssignmentRepository;
     private final EmployeeWindowAssignmentRepository employeeWindowAssignmentRepository;
+    private final UserAssignmentService userAssignmentService;
+    private final UserDepartmentScopeRepository userDepartmentScopeRepository;
     private final DepartmentScopeService departmentScopeService;
     private final AuditService auditService;
 
@@ -79,6 +83,8 @@ public class DirectoryService {
                             DepartmentServiceRepository departmentServiceRepository,
                             EmployeeServiceAssignmentRepository employeeServiceAssignmentRepository,
                             EmployeeWindowAssignmentRepository employeeWindowAssignmentRepository,
+                            UserAssignmentService userAssignmentService,
+                            UserDepartmentScopeRepository userDepartmentScopeRepository,
                             DepartmentScopeService departmentScopeService,
                             AuditService auditService) {
         this.regionRepository = regionRepository;
@@ -91,6 +97,8 @@ public class DirectoryService {
         this.departmentServiceRepository = departmentServiceRepository;
         this.employeeServiceAssignmentRepository = employeeServiceAssignmentRepository;
         this.employeeWindowAssignmentRepository = employeeWindowAssignmentRepository;
+        this.userAssignmentService = userAssignmentService;
+        this.userDepartmentScopeRepository = userDepartmentScopeRepository;
         this.departmentScopeService = departmentScopeService;
         this.auditService = auditService;
     }
@@ -399,13 +407,8 @@ public class DirectoryService {
     public WindowResponse assignEmployeeToWindow(UUID id, AssignEmployeeToWindowRequest request, HttpServletRequest httpRequest) {
         ServiceWindowEntity window = windowOrThrow(id);
         departmentScopeService.requireDepartmentAccess(window.getDepartmentId());
-        EmployeeWindowAssignmentEntity assignment = employeeWindowAssignmentRepository
-                .findByUserIdAndServiceWindowId(request.employeeId(), id)
-                .orElseGet(EmployeeWindowAssignmentEntity::new);
-        assignment.setUserId(request.employeeId());
-        assignment.setServiceWindowId(id);
-        assignment.setActive(true);
-        employeeWindowAssignmentRepository.save(assignment);
+        requireEmployeeDepartment(request.employeeId(), window.getDepartmentId());
+        userAssignmentService.replaceWindow(request.employeeId(), window.getDepartmentId(), id.toString());
         auditService.write("WINDOW_ASSIGN_EMPLOYEE", "WINDOW", id, simpleJson("employeeId", request.employeeId().toString()), httpRequest);
         return windowResponse(window);
     }
@@ -542,6 +545,7 @@ public class DirectoryService {
         departmentOrThrow(request.departmentId());
         serviceOrThrow(serviceId);
         departmentScopeService.requireDepartmentAccess(request.departmentId());
+        requireEmployeeDepartment(employeeId, request.departmentId());
         if (!departmentServiceRepository.existsByDepartmentIdAndServiceIdAndActiveTrue(request.departmentId(), serviceId)) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "SERVICE_NOT_AVAILABLE_IN_DEPARTMENT", "Service is not available in department");
         }
@@ -687,7 +691,23 @@ public class DirectoryService {
     }
 
     private WindowResponse windowResponse(ServiceWindowEntity entity) {
-        return new WindowResponse(entity.getId(), entity.getDepartmentId(), entity.getHallId(), entity.getCode(), entity.getDisplayName(), entity.isActive(), entity.isOpen(), entity.getStatus(), entity.getCreatedAt(), entity.getUpdatedAt());
+        UUID employeeId = employeeWindowAssignmentRepository
+                .findFirstByServiceWindowIdAndActiveTrueOrderByAssignedAtDesc(entity.getId())
+                .map(EmployeeWindowAssignmentEntity::getUserId)
+                .orElse(null);
+        return new WindowResponse(entity.getId(), entity.getDepartmentId(), entity.getHallId(), employeeId, entity.getCode(), entity.getDisplayName(), entity.isActive(), entity.isOpen(), entity.getStatus(), entity.getCreatedAt(), entity.getUpdatedAt());
+    }
+
+    private void requireEmployeeDepartment(UUID employeeId, UUID departmentId) {
+        UUID employeeDepartmentId = userDepartmentScopeRepository.primaryDepartmentId(employeeId);
+        if (employeeDepartmentId == null) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "EMPLOYEE_DEPARTMENT_REQUIRED",
+                    "Employee must be assigned to a department before window or service assignment");
+        }
+        if (!employeeDepartmentId.equals(departmentId)) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "EMPLOYEE_DEPARTMENT_MISMATCH",
+                    "Employee and assignment must belong to the same department");
+        }
     }
 
     private ServiceCategoryResponse categoryResponse(ServiceCategoryEntity entity) {
