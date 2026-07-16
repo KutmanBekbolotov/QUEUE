@@ -23,4 +23,34 @@ public record MeResponse(
     public List<String> services() {
         return serviceCodes;
     }
+
+    @JsonProperty("assignedWindow")
+    public UUID assignedWindow() {
+        return windowId;
+    }
+
+    @JsonProperty("assignedWindowId")
+    public UUID assignedWindowId() {
+        return windowId;
+    }
+
+    @JsonProperty("employeeService")
+    public List<String> employeeService() {
+        return serviceCodes;
+    }
+
+    @JsonProperty("employeeServices")
+    public List<String> employeeServices() {
+        return serviceCodes;
+    }
+
+    @JsonProperty("employeeServiceIds")
+    public List<UUID> employeeServiceIds() {
+        return serviceIds;
+    }
+
+    @JsonProperty("employeeServiceCodes")
+    public List<String> employeeServiceCodes() {
+        return serviceCodes;
+    }
 }

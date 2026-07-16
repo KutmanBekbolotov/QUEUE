@@ -174,7 +174,12 @@ public class UserAssignmentService {
         if (value == null || value.isBlank()) {
             return null;
         }
-        return value.trim();
+        String normalized = value.trim();
+        int rowKeySeparator = normalized.lastIndexOf(':');
+        if (rowKeySeparator >= 0 && rowKeySeparator < normalized.length() - 1) {
+            normalized = normalized.substring(rowKeySeparator + 1).trim();
+        }
+        return normalized.isBlank() ? null : normalized;
     }
 
     private void requireDepartment(UUID departmentId) {

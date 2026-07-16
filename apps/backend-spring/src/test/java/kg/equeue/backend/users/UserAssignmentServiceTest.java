@@ -92,6 +92,26 @@ class UserAssignmentServiceTest {
     }
 
     @Test
+    void replaceServicesAcceptsDepartmentServiceRowKeys() {
+        UUID userId = UUID.randomUUID();
+        UUID departmentId = UUID.randomUUID();
+        UUID serviceId = UUID.randomUUID();
+        QueueServiceEntity service = service(serviceId, "VS");
+        when(serviceAssignmentRepository.findByUserId(userId)).thenReturn(List.of());
+        when(queueServiceRepository.findById(serviceId)).thenReturn(Optional.of(service));
+        when(departmentServiceRepository.existsByDepartmentIdAndServiceIdAndActiveTrue(departmentId, serviceId)).thenReturn(true);
+
+        userAssignmentService.replaceServices(userId, departmentId, Set.of(departmentId + ":" + serviceId));
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Iterable<EmployeeServiceAssignmentEntity>> captor = ArgumentCaptor.forClass(Iterable.class);
+        verify(serviceAssignmentRepository).saveAll(captor.capture());
+        assertThat(toList(captor.getValue()))
+                .singleElement()
+                .satisfies(assignment -> assertThat(assignment.getServiceId()).isEqualTo(serviceId));
+    }
+
+    @Test
     void assignmentsReturnsWindowAndServiceDetails() {
         UUID userId = UUID.randomUUID();
         UUID windowId = UUID.randomUUID();

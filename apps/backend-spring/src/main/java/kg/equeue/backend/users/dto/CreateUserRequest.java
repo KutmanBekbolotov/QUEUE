@@ -1,6 +1,8 @@
 package kg.equeue.backend.users.dto;
 
 import com.fasterxml.jackson.annotation.JsonAlias;
+import com.fasterxml.jackson.annotation.JsonFormat;
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import java.util.Set;
@@ -14,7 +16,11 @@ public record CreateUserRequest(
         @Size(max = 64) String phone,
         UUID departmentId,
         Set<String> roleCodes,
+        @JsonAlias({"assignedWindow", "assignedWindowId"})
         String windowId,
-        @JsonAlias({"services", "serviceCodes"}) Set<String> serviceIds
+        @JsonAlias({"services", "serviceCodes", "employeeService", "employeeServices", "employeeServiceIds", "employeeServiceCodes"})
+        @JsonFormat(with = JsonFormat.Feature.ACCEPT_SINGLE_VALUE_AS_ARRAY)
+        @JsonDeserialize(contentUsing = AssignmentIdentifierDeserializer.class)
+        Set<String> serviceIds
 ) {
 }
