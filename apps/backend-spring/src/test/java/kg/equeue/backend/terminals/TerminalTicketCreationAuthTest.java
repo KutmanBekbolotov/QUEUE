@@ -61,7 +61,7 @@ class TerminalTicketCreationAuthTest {
         service.setCategoryId(categoryId);
         ServiceCategoryEntity category = new ServiceCategoryEntity();
         ReflectionTestUtils.setField(category, "id", categoryId);
-        category.setCode("CAT");
+        category.setCode("TS");
         category.setName("Категория");
         category.setTicketPrefix("A");
         when(terminalRepository.findById(terminalId)).thenReturn(Optional.of(terminal));
@@ -81,12 +81,14 @@ class TerminalTicketCreationAuthTest {
             assertThat(configService.id()).isEqualTo(serviceId);
             assertThat(configService.code()).isEqualTo("REG");
             assertThat(configService.categoryId()).isEqualTo(categoryId);
+            assertThat(configService.categoryCode()).isEqualTo("TS");
             assertThat(configService.type()).isEqualTo("VS");
             assertThat(configService.name().ru()).isEqualTo("Регистрация");
             assertThat(configService.name().ky()).isEqualTo("Регистрация");
         });
         assertThat(response.categories()).singleElement().satisfies(configCategory -> {
             assertThat(configCategory.id()).isEqualTo(categoryId);
+            assertThat(configCategory.code()).isEqualTo("TS");
             assertThat(configCategory.type()).isEqualTo("VS");
             assertThat(configCategory.name().ru()).isEqualTo("Категория");
             assertThat(configCategory.name().ky()).isEqualTo("Категория");

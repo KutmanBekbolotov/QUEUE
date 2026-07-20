@@ -1,47 +1,43 @@
-package kg.equeue.backend.terminals;
+package kg.equeue.backend.qr;
 
 import jakarta.validation.constraints.NotNull;
 import java.util.List;
 import java.util.UUID;
 
-public final class TerminalDtos {
+public final class QrDtos {
 
-    private TerminalDtos() {
+    private QrDtos() {
     }
 
-    public record TerminalConfigResponse(
-            UUID terminalId,
+    public record QrConfigResponse(
             UUID departmentId,
-            String code,
-            String name,
-            List<UUID> serviceIds,
-            List<TerminalConfigServiceResponse> services,
-            List<TerminalConfigCategoryResponse> categories
+            String departmentCode,
+            String departmentName,
+            List<QrConfigServiceResponse> services,
+            List<QrConfigCategoryResponse> categories
     ) {
     }
 
     public record LocalizedName(String ru, String ky) {
     }
 
-    public record TerminalConfigServiceResponse(
+    public record QrConfigServiceResponse(
             UUID id,
             String code,
             LocalizedName name,
             UUID categoryId,
-            String categoryCode,
-            String type
+            String categoryCode
     ) {
     }
 
-    public record TerminalConfigCategoryResponse(
+    public record QrConfigCategoryResponse(
             UUID id,
             String code,
-            String type,
             LocalizedName name
     ) {
     }
 
-    public record TerminalCreateTicketRequest(
+    public record QrCreateTicketRequest(
             @NotNull UUID departmentId,
             @NotNull UUID serviceId,
             String citizenFullName,

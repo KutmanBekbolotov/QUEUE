@@ -631,11 +631,13 @@ type TerminalConfigService = {
   code: string;
   name: LocalizedName;
   categoryId: string;
+  categoryCode: string;
   type: 'VS';
 };
 
 type TerminalConfigCategory = {
   id: string;
+  code: string;
   type: 'VS';
   name: LocalizedName;
 };
@@ -653,10 +655,61 @@ type TerminalCreateTicketRequest = {
 UI-требования:
 
 - После загрузки конфигурации показать только услуги из `services`; `serviceIds` остаётся для обратной совместимости.
+- Не фильтровать услуги ТС по `type`: это legacy-тип терминального элемента и он равен `'VS'`. Для ТС использовать `service.categoryCode === 'TS'`, `category.code === 'TS'` или `service.code.startsWith('TS_')`.
 - После создания талона показать `ticketNumber` крупно и подготовить printable view.
 - При `DEVICE_TOKEN_REQUIRED` или `401` показывать технический экран "устройство не авторизовано".
 
-### 7.8. ТВ-табло
+### 7.8. QR-сценарий
+
+Endpoints:
+
+- `GET /api/v1/qr/departments/{departmentId}/config`
+- `POST /api/v1/qr/tickets`
+
+DTO:
+
+```ts
+type QrConfigResponse = {
+  departmentId: string;
+  departmentCode: string;
+  departmentName: string;
+  services: QrConfigService[];
+  categories: QrConfigCategory[];
+};
+
+type QrConfigService = {
+  id: string;
+  code: string;
+  name: LocalizedName;
+  categoryId: string;
+  categoryCode: string;
+};
+
+type QrConfigCategory = {
+  id: string;
+  code: string;
+  name: LocalizedName;
+};
+
+type QrCreateTicketRequest = {
+  departmentId: string;
+  serviceId: string;
+  citizenFullName?: string;
+  citizenPin?: string;
+  citizenPhone?: string;
+  comment?: string;
+};
+```
+
+UI-требования:
+
+- QR-ссылка должна открыть публичный маршрут фронта с `departmentId`.
+- На старте загрузить config и показывать только `services` из ответа; backend уже отфильтровал услуги по `qrEnabled`.
+- Для группировки услуг ТС использовать `categoryCode === 'TS'`, не `type`.
+- После выбора услуги отправить `POST /api/v1/qr/tickets`; в ответе показать `ticketNumber` и `status`.
+- Не отправлять `Authorization`, `X-Device-Token`, `X-API-Key` или integration headers из публичной QR-страницы.
+
+### 7.9. ТВ-табло
 
 Endpoints:
 
@@ -680,7 +733,7 @@ UI-требования:
 - При обрыве stream переподключаться с backoff 1s, 2s, 5s, 10s, 30s.
 - Показывать только актуальные вызванные/обслуживаемые талоны. Backend snapshot ориентирован на `CALLED` и `IN_SERVICE`.
 
-### 7.9. Онлайн-бронирование и слоты
+### 7.10. Онлайн-бронирование и слоты
 
 Endpoints Spring для авторизованного staff/admin frontend:
 
@@ -768,7 +821,7 @@ Check-in:
   - `BOOKING_CHECK_IN_TOO_LATE`
   - `BOOKING_INVALID_STATUS`
 
-### 7.10. Отчеты и экспорт
+### 7.11. Отчеты и экспорт
 
 Endpoints:
 
@@ -880,7 +933,7 @@ UI-требования:
 - Для скачивания использовать `GET /reports/export/{id}/download` с `Authorization` header.
 - Для скачивания через browser `window.open` с Authorization не подходит. Нужно использовать `fetch`, получить `Blob`, затем создать object URL.
 
-### 7.11. Аудит
+### 7.12. Аудит
 
 Endpoint:
 
@@ -1064,13 +1117,14 @@ type PageResponse<T> = {
 3. Все mutating external requests отправляют `Idempotency-Key`.
 4. Оператор может открыть окно, вызвать талон, начать, поставить на паузу, возобновить, завершить, отменить, отметить no-show и перевести талон.
 5. Терминал может загрузить config и создать талон по `X-Device-Token`.
-6. ТВ-табло загружает snapshot и получает live updates через SSE с автоматическим reconnect.
-7. Бронирования: доступные даты, слоты, создание, отмена, check-in и управление слотами работают с правильными статусами.
-8. Отчеты отображают фильтры, ограничения периода, пагинацию деталей, экспорт и скачивание blob.
-9. Все ошибки показываются через единый обработчик с `requestId`.
-10. Публичный browser frontend не содержит `X-API-Key`, `X-Backend-Integration-Key`, refresh token в логах или device token в обычном localStorage.
-11. В dev окружении фронт работает через `http://localhost:8088/api/v1` без CORS-ошибок.
-12. Swagger/OpenAPI сверка проходит перед релизом: нет фронтовых вызовов к endpoints, отсутствующим в текущем backend-коде.
+6. QR-страница может загрузить публичный config и создать талон без JWT/device-token.
+7. ТВ-табло загружает snapshot и получает live updates через SSE с автоматическим reconnect.
+8. Бронирования: доступные даты, слоты, создание, отмена, check-in и управление слотами работают с правильными статусами.
+9. Отчеты отображают фильтры, ограничения периода, пагинацию деталей, экспорт и скачивание blob.
+10. Все ошибки показываются через единый обработчик с `requestId`.
+11. Публичный browser frontend не содержит `X-API-Key`, `X-Backend-Integration-Key`, refresh token в логах или device token в обычном localStorage.
+12. В dev окружении фронт работает через `http://localhost:8088/api/v1` без CORS-ошибок.
+13. Swagger/OpenAPI сверка проходит перед релизом: нет фронтовых вызовов к endpoints, отсутствующим в текущем backend-коде.
 
 ## 13. Известные backend-риски для фронта
 

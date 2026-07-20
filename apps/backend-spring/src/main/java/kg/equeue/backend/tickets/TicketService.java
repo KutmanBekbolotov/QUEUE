@@ -127,6 +127,11 @@ public class TicketService {
         return create(request, actorType, actorId, false, httpRequest);
     }
 
+    @Transactional
+    public TicketResponse createSelfServiceTicket(CreateTicketRequest request, HttpServletRequest httpRequest) {
+        return create(request, TicketActorType.SYSTEM, null, false, httpRequest);
+    }
+
     private TicketResponse create(CreateTicketRequest request, TicketActorType actorType, UUID actorId, boolean enforceScope, HttpServletRequest httpRequest) {
         DepartmentEntity department = departmentRepository.findById(request.departmentId())
                 .orElseThrow(() -> notFound("DEPARTMENT_NOT_FOUND", "Department was not found"));
@@ -352,18 +357,23 @@ public class TicketService {
     }
 
     private TicketResponse callLocked(TicketEntity ticket, ServiceWindowEntity window, HttpServletRequest httpRequest, String eventType) {
-        if (ticket.getStatus() != TicketStatus.WAITING) {
+        TicketStatus from = ticket.getStatus();
+        if (from != TicketStatus.WAITING && from != TicketStatus.CALLED) {
             throw invalidTransition(ticket.getStatus(), TicketStatus.CALLED);
         }
-        if (!TicketTransitionPolicy.canTransition(ticket.getStatus(), TicketStatus.CALLED)) {
+        if (!TicketTransitionPolicy.canTransition(from, TicketStatus.CALLED)) {
             throw invalidTransition(ticket.getStatus(), TicketStatus.CALLED);
+        }
+        if (from == TicketStatus.CALLED && ticket.getWindowId() != null && !ticket.getWindowId().equals(window.getId())) {
+            throw new ApiException(HttpStatus.CONFLICT, "TICKET_ALREADY_CALLED_TO_ANOTHER_WINDOW",
+                    "Ticket is already called to another window", Map.of("windowId", ticket.getWindowId()));
         }
         ticket.setStatus(TicketStatus.CALLED);
         ticket.setWindowId(window.getId());
         ticket.setHallId(window.getHallId());
         ticket.setServedByUserId(CurrentUser.idOrNull());
         ticket.setCalledAt(Instant.now());
-        return saveTransition(ticket, TicketStatus.WAITING, TicketStatus.CALLED, eventType, httpRequest);
+        return saveTransition(ticket, from, TicketStatus.CALLED, eventType, httpRequest);
     }
 
     private TicketResponse transition(UUID id, TicketStatus expected, TicketStatus target, String eventType, TicketMutator mutator, HttpServletRequest httpRequest) {

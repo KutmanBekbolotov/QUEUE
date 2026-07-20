@@ -77,12 +77,14 @@ Response:
       "code": "REG",
       "name": {"ru": "Регистрация", "ky": "Регистрация"},
       "categoryId": "<category-id>",
+      "categoryCode": "TS",
       "type": "VS"
     }
   ],
   "categories": [
     {
       "id": "<category-id>",
+      "code": "TS",
       "type": "VS",
       "name": {"ru": "Категория", "ky": "Категория"}
     }

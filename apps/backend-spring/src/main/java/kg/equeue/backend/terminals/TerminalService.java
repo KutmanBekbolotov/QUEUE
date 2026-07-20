@@ -64,19 +64,31 @@ public class TerminalService {
         Map<UUID, QueueServiceEntity> servicesById = queueServiceRepository.findAllById(serviceIds)
                 .stream()
                 .collect(Collectors.toMap(QueueServiceEntity::getId, service -> service, (first, second) -> first));
-        List<TerminalDtos.TerminalConfigServiceResponse> services = serviceIds.stream()
+        List<QueueServiceEntity> visibleServices = serviceIds.stream()
                 .map(servicesById::get)
                 .filter(Objects::nonNull)
-                .map(this::terminalServiceResponse)
+                .filter(QueueServiceEntity::isActive)
                 .toList();
-        List<UUID> categoryIds = services.stream()
-                .map(TerminalDtos.TerminalConfigServiceResponse::categoryId)
+        List<UUID> categoryIds = visibleServices.stream()
+                .map(QueueServiceEntity::getCategoryId)
                 .distinct()
                 .toList();
         Map<UUID, ServiceCategoryEntity> categoriesById = serviceCategoryRepository.findAllById(categoryIds)
                 .stream()
+                .filter(ServiceCategoryEntity::isActive)
                 .collect(Collectors.toMap(ServiceCategoryEntity::getId, category -> category, (first, second) -> first));
-        List<TerminalDtos.TerminalConfigCategoryResponse> categories = categoryIds.stream()
+        visibleServices = visibleServices.stream()
+                .filter(service -> categoriesById.containsKey(service.getCategoryId()))
+                .toList();
+        List<UUID> visibleServiceIds = visibleServices.stream()
+                .map(QueueServiceEntity::getId)
+                .toList();
+        List<TerminalDtos.TerminalConfigServiceResponse> services = visibleServices.stream()
+                .map(service -> terminalServiceResponse(service, categoriesById.get(service.getCategoryId())))
+                .toList();
+        List<TerminalDtos.TerminalConfigCategoryResponse> categories = visibleServices.stream()
+                .map(QueueServiceEntity::getCategoryId)
+                .distinct()
                 .map(categoriesById::get)
                 .filter(Objects::nonNull)
                 .map(this::terminalCategoryResponse)
@@ -86,7 +98,7 @@ public class TerminalService {
                 terminal.getDepartmentId(),
                 terminal.getCode(),
                 terminal.getName(),
-                serviceIds,
+                visibleServiceIds,
                 services,
                 categories
         );
@@ -129,12 +141,13 @@ public class TerminalService {
         }
     }
 
-    private TerminalDtos.TerminalConfigServiceResponse terminalServiceResponse(QueueServiceEntity service) {
+    private TerminalDtos.TerminalConfigServiceResponse terminalServiceResponse(QueueServiceEntity service, ServiceCategoryEntity category) {
         return new TerminalDtos.TerminalConfigServiceResponse(
                 service.getId(),
                 service.getCode(),
                 localizedName(service.getName()),
                 service.getCategoryId(),
+                category.getCode(),
                 TERMINAL_SERVICE_TYPE
         );
     }
@@ -142,6 +155,7 @@ public class TerminalService {
     private TerminalDtos.TerminalConfigCategoryResponse terminalCategoryResponse(ServiceCategoryEntity category) {
         return new TerminalDtos.TerminalConfigCategoryResponse(
                 category.getId(),
+                category.getCode(),
                 TERMINAL_SERVICE_TYPE,
                 localizedName(category.getName())
         );

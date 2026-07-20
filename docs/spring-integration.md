@@ -907,11 +907,13 @@ type TerminalConfigService = {
   code: string;
   name: LocalizedName;
   categoryId: string;
+  categoryCode: string;
   type: "VS";
 };
 
 type TerminalConfigCategory = {
   id: string;
+  code: string;
   type: "VS";
   name: LocalizedName;
 };
@@ -926,9 +928,53 @@ type TerminalCreateTicketRequest = {
 };
 ```
 
-`services` содержит детали услуг из `serviceIds`; `categories` содержит категории этих услуг. Пока локализация хранится одной строкой, поэтому `name.ru` и `name.ky` заполняются одинаковым значением. Terminal ticket source всегда нормализуется в `TERMINAL`. Terminal не может создать ticket для другого department.
+`services` содержит детали услуг из `serviceIds`; `categories` содержит категории этих услуг. Backend возвращает активные услуги подразделения, у которых включён `terminalEnabled`, а также активна сама услуга и её категория. `type: "VS"` — legacy-тип терминального элемента, не код категории; для услуг ТС фильтровать/группировать нужно по `categoryCode === "TS"` или по `categories[].code`. Пока локализация хранится одной строкой, поэтому `name.ru` и `name.ky` заполняются одинаковым значением. Terminal ticket source всегда нормализуется в `TERMINAL`. Terminal не может создать ticket для другого department.
 
-### 11.2. TV Display
+### 11.2. QR self-service
+
+Base: `/api/v1/qr`
+
+| Method | Path | Auth | Body | Response |
+| --- | --- | --- | --- | --- |
+| `GET` | `/departments/{departmentId}/config` | public | - | `QrConfigResponse` |
+| `POST` | `/tickets` | public | `QrCreateTicketRequest` | `TicketResponse` |
+
+```ts
+type QrConfigResponse = {
+  departmentId: string;
+  departmentCode: string;
+  departmentName: string;
+  services: QrConfigService[];
+  categories: QrConfigCategory[];
+};
+
+type QrConfigService = {
+  id: string;
+  code: string;
+  name: LocalizedName;
+  categoryId: string;
+  categoryCode: string;
+};
+
+type QrConfigCategory = {
+  id: string;
+  code: string;
+  name: LocalizedName;
+};
+
+type QrCreateTicketRequest = {
+  departmentId: string;
+  serviceId: string;
+  citizenFullName?: string;
+  citizenPin?: string;
+  citizenPhone?: string;
+  comment?: string;
+};
+```
+
+QR config возвращает только активные услуги подразделения, у которых включён `qrEnabled`, а также активна сама услуга и категория. `POST /tickets` создаёт талон с `source = QR_SELF_SERVICE`; backend дополнительно проверяет `qrEnabled` перед созданием.
+
+### 11.3. TV Display
 
 Base: `/api/v1/tv/displays/{tvDisplayId}`
 
@@ -947,7 +993,7 @@ type TvSnapshotResponse = {
 
 Snapshot возвращает до 20 последних tickets со статусами `CALLED` и `IN_SERVICE`.
 
-### 11.3. Device registry
+### 11.4. Device registry
 
 | Method | Path | Permission | Response |
 | --- | --- | --- | --- |
@@ -1295,11 +1341,19 @@ Spring direct flow is:
 
 1. Device sends `X-Device-Token`.
 2. Load config: `GET /api/v1/terminal/{terminalId}/config`.
-3. Show only returned `services`; `serviceIds` remains for backward-compatible filtering.
+3. Show only returned `services`; do not filter by `type`. For ТС use `service.categoryCode === "TS"`.
 4. Create ticket: `POST /api/v1/terminal/{terminalId}/tickets`.
 5. Print/display `ticketNumber`.
 
-### 17.5. TV flow
+### 17.5. QR self-service flow
+
+1. QR code opens public frontend route with `departmentId`.
+2. Frontend loads config: `GET /api/v1/qr/departments/{departmentId}/config`.
+3. Frontend shows returned `services`; for ТС grouping/filtering use `service.categoryCode === "TS"`.
+4. Citizen selects a service and frontend creates ticket: `POST /api/v1/qr/tickets`.
+5. Show `ticketNumber` and current `status`; source is created as `QR_SELF_SERVICE`.
+
+### 17.6. TV flow
 
 1. Device sends `X-Device-Token`.
 2. Load snapshot: `GET /api/v1/tv/displays/{tvDisplayId}/snapshot`.

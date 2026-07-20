@@ -9,6 +9,7 @@ class TicketTransitionPolicyTest {
     @Test
     void allowsRequiredLifecycleTransitions() {
         assertThat(TicketTransitionPolicy.canTransition(TicketStatus.WAITING, TicketStatus.CALLED)).isTrue();
+        assertThat(TicketTransitionPolicy.canTransition(TicketStatus.CALLED, TicketStatus.CALLED)).isTrue();
         assertThat(TicketTransitionPolicy.canTransition(TicketStatus.CALLED, TicketStatus.IN_SERVICE)).isTrue();
         assertThat(TicketTransitionPolicy.canTransition(TicketStatus.IN_SERVICE, TicketStatus.PAUSED)).isTrue();
         assertThat(TicketTransitionPolicy.canTransition(TicketStatus.PAUSED, TicketStatus.IN_SERVICE)).isTrue();
@@ -24,4 +25,3 @@ class TicketTransitionPolicyTest {
         assertThat(TicketTransitionPolicy.canTransition(TicketStatus.NO_SHOW, TicketStatus.IN_SERVICE)).isFalse();
     }
 }
-
