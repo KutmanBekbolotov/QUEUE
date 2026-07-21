@@ -105,6 +105,11 @@ public class QrSelfServiceService {
         return ticketService.createSelfServiceTicket(normalized, httpRequest);
     }
 
+    @Transactional(readOnly = true)
+    public TicketResponse ticket(UUID ticketId) {
+        return ticketService.getQrSelfServiceTicket(ticketId);
+    }
+
     private DepartmentEntity availableDepartment(UUID departmentId) {
         DepartmentEntity department = departmentRepository.findById(departmentId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "DEPARTMENT_NOT_FOUND", "Department was not found"));

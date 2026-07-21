@@ -976,6 +976,7 @@ Base: `/api/v1/qr`
 | Method | Path | Auth | Body | Response |
 | --- | --- | --- | --- | --- |
 | `GET` | `/departments/{departmentId}/config` | public | - | `QrConfigResponse` |
+| `GET` | `/tickets/{ticketId}` | public | - | `TicketResponse` |
 | `POST` | `/tickets` | public | `QrCreateTicketRequest` | `TicketResponse` |
 
 ```ts
@@ -1005,12 +1006,12 @@ type QrCreateTicketRequest = {
   departmentId: string;
   serviceId: string;
   citizenFullName?: string;
-  citizenPhone: string;
+  citizenPhone?: string;
   comment?: string;
 };
 ```
 
-QR config возвращает только активные услуги подразделения, у которых включён `qrEnabled`, а также активна сама услуга и категория. `POST /tickets` создаёт талон с `source = QR_SELF_SERVICE`; backend дополнительно проверяет `qrEnabled` перед созданием. ПИН в QR-сценарии не принимается и не хранится: `citizenPin` для QR-талона всегда `null`. `citizenPhone` обязателен и нормализуется до цифр; если в этом подразделении уже есть QR-талон с тем же телефоном в статусе `CREATED`, `WAITING`, `CALLED`, `IN_SERVICE` или `PAUSED`, backend вернет `409 QR_CITIZEN_HAS_UNFINISHED_TICKET`.
+QR config возвращает только активные услуги подразделения, у которых включён `qrEnabled`, а также активна сама услуга и категория. `POST /tickets` создаёт талон с `source = QR_SELF_SERVICE`; backend дополнительно проверяет `qrEnabled` перед созданием. ПИН в QR-сценарии не принимается и не хранится: `citizenPin` для QR-талона всегда `null`. Backend не блокирует повторную выдачу по номеру телефона; фронт должен сохранить `ticketId` созданного QR-талона на устройстве пользователя и показывать текущий талон после обновления страницы. `GET /tickets/{ticketId}` публично возвращает только талоны с `source = QR_SELF_SERVICE`; для отсутствующего или не-QR талона возвращается `404 QR_TICKET_NOT_FOUND`.
 
 ### 11.3. TV Display
 
@@ -1390,11 +1391,12 @@ Spring direct flow is:
 ### 17.5. QR self-service flow
 
 1. QR code opens public frontend route with `departmentId`.
-2. Frontend loads config: `GET /api/v1/qr/departments/{departmentId}/config`.
-3. Frontend shows returned `services`; for ТС grouping/filtering use `service.categoryCode === "TS"`.
-4. Citizen selects a service and frontend creates ticket: `POST /api/v1/qr/tickets`.
-5. Frontend does not show or submit PIN in this flow.
-6. Show `ticketNumber` and current `status`; source is created as `QR_SELF_SERVICE`.
+2. Frontend first checks locally saved QR `ticketId`. If it exists, load status with `GET /api/v1/qr/tickets/{ticketId}`.
+3. If saved ticket is in `CREATED`, `WAITING`, `CALLED`, `IN_SERVICE` or `PAUSED`, show the current ticket screen and poll the same endpoint for status updates.
+4. If there is no saved active ticket, frontend loads config: `GET /api/v1/qr/departments/{departmentId}/config`.
+5. Frontend shows returned `services`; for ТС grouping/filtering use `service.categoryCode === "TS"`.
+6. Citizen selects a service and frontend creates ticket: `POST /api/v1/qr/tickets`.
+7. Frontend saves created `ticketId` locally, does not show or submit PIN, and shows `ticketNumber` plus current `status`; source is created as `QR_SELF_SERVICE`.
 
 ### 17.6. TV flow
 

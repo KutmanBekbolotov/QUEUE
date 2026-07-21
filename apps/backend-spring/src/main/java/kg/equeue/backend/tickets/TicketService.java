@@ -9,7 +9,6 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import java.util.regex.Pattern;
 import kg.equeue.backend.audit.AuditService;
 import kg.equeue.backend.cancellationreasons.CancellationReasonRepository;
 import kg.equeue.backend.common.ApiException;
@@ -50,14 +49,6 @@ import org.springframework.transaction.annotation.Transactional;
 public class TicketService {
 
     private static final EnumSet<TicketStatus> ACTIVE_TICKET_STATUSES = EnumSet.of(TicketStatus.CALLED, TicketStatus.IN_SERVICE, TicketStatus.PAUSED);
-    private static final EnumSet<TicketStatus> UNFINISHED_QR_TICKET_STATUSES = EnumSet.of(
-            TicketStatus.CREATED,
-            TicketStatus.WAITING,
-            TicketStatus.CALLED,
-            TicketStatus.IN_SERVICE,
-            TicketStatus.PAUSED
-    );
-    private static final Pattern NON_DIGIT_PATTERN = Pattern.compile("\\D");
     private static final EnumSet<TicketStatus> TV_STATUSES = ACTIVE_TICKET_STATUSES;
     private static final List<String> ACTIVE_TICKET_STATUS_NAMES = List.of(
             TicketStatus.CALLED.name(),
@@ -178,9 +169,6 @@ public class TicketService {
                 .filter(DepartmentServiceEntity::isActive)
                 .orElseThrow(() -> badRequest("SERVICE_NOT_AVAILABLE_IN_DEPARTMENT", "Service is not available in department"));
         validateSourceAllowed(request.source(), departmentService);
-        String citizenPhone = request.source() == TicketSource.QR_SELF_SERVICE
-                ? requireQrCitizenCanCreateTicket(department.getId(), request.citizenPhone())
-                : request.citizenPhone();
 
         LocalDate workDate = LocalDate.now();
         int sequence = ticketSequenceService.nextValue(department.getId(), category.getId(), workDate);
@@ -198,7 +186,7 @@ public class TicketService {
         ticket.setWorkDate(workDate);
         ticket.setCitizenFullName(request.citizenFullName());
         ticket.setCitizenPin(request.citizenPin());
-        ticket.setCitizenPhone(citizenPhone);
+        ticket.setCitizenPhone(request.citizenPhone());
         ticket.setSource(request.source());
         ticket.setStatus(TicketStatus.WAITING);
         ticket.setComment(request.comment());
@@ -225,6 +213,14 @@ public class TicketService {
     public TicketResponse get(UUID id) {
         TicketEntity ticket = ticketOrThrow(id);
         departmentScopeService.requireDepartmentAccess(ticket.getDepartmentId());
+        return response(ticket);
+    }
+
+    @Transactional(readOnly = true)
+    public TicketResponse getQrSelfServiceTicket(UUID id) {
+        TicketEntity ticket = ticketRepository.findById(id)
+                .filter(found -> found.getSource() == TicketSource.QR_SELF_SERVICE)
+                .orElseThrow(() -> notFound("QR_TICKET_NOT_FOUND", "QR ticket was not found"));
         return response(ticket);
     }
 
@@ -509,46 +505,6 @@ public class TicketService {
         }
     }
 
-    private String requireQrCitizenCanCreateTicket(UUID departmentId, String citizenPhone) {
-        String normalizedPhone = normalizeQrPhone(citizenPhone);
-        lockQrCitizen(departmentId, normalizedPhone);
-        ticketRepository
-                .findFirstByDepartmentIdAndSourceAndCitizenPhoneAndStatusInOrderByCreatedAtAsc(
-                        departmentId,
-                        TicketSource.QR_SELF_SERVICE,
-                        normalizedPhone,
-                        UNFINISHED_QR_TICKET_STATUSES
-                )
-                .ifPresent(ticket -> {
-                    throw qrCitizenHasUnfinishedTicket(ticket);
-                });
-        return normalizedPhone;
-    }
-
-    private String normalizeQrPhone(String citizenPhone) {
-        if (citizenPhone == null || citizenPhone.isBlank()) {
-            throw badRequest("QR_CITIZEN_PHONE_REQUIRED", "citizenPhone is required for QR self-service");
-        }
-        String normalized = NON_DIGIT_PATTERN.matcher(citizenPhone).replaceAll("");
-        if (normalized.isBlank()) {
-            throw badRequest("QR_CITIZEN_PHONE_REQUIRED", "citizenPhone is required for QR self-service");
-        }
-        return normalized;
-    }
-
-    private void lockQrCitizen(UUID departmentId, String normalizedPhone) {
-        if (jdbcTemplate == null) {
-            return;
-        }
-        jdbcTemplate.query("""
-                SELECT pg_advisory_xact_lock(hashtext(:departmentKey), hashtext(:phoneKey))
-                """,
-                new MapSqlParameterSource()
-                        .addValue("departmentKey", "qr-ticket:" + departmentId)
-                        .addValue("phoneKey", normalizedPhone),
-                rs -> null);
-    }
-
     private TicketResponse readReplay(String body) {
         try {
             return objectMapper.readValue(body, TicketResponse.class);
@@ -693,15 +649,6 @@ public class TicketService {
         details.put("operatorId", operatorId);
         return new ApiException(HttpStatus.CONFLICT, "OPERATOR_HAS_ACTIVE_TICKET",
                 "Operator or window already has an active ticket", details);
-    }
-
-    private ApiException qrCitizenHasUnfinishedTicket(TicketEntity ticket) {
-        Map<String, Object> details = new java.util.LinkedHashMap<>();
-        details.put("ticketId", ticket.getId());
-        details.put("ticketNumber", ticket.getTicketNumber());
-        details.put("status", ticket.getStatus());
-        return new ApiException(HttpStatus.CONFLICT, "QR_CITIZEN_HAS_UNFINISHED_TICKET",
-                "Citizen already has an unfinished QR self-service ticket", details);
     }
 
     private ApiException notFound(String code, String message) {

@@ -30,6 +30,11 @@ public class QrSelfServiceController {
         return qrSelfServiceService.config(departmentId);
     }
 
+    @GetMapping("/tickets/{ticketId}")
+    TicketResponse ticket(@PathVariable UUID ticketId) {
+        return qrSelfServiceService.ticket(ticketId);
+    }
+
     @PostMapping("/tickets")
     TicketResponse createTicket(@Valid @RequestBody QrCreateTicketRequest request, HttpServletRequest httpRequest) {
         return qrSelfServiceService.createTicket(request, httpRequest);

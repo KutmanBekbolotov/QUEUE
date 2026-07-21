@@ -672,6 +672,7 @@ UI-требования:
 Endpoints:
 
 - `GET /api/v1/qr/departments/{departmentId}/config`
+- `GET /api/v1/qr/tickets/{ticketId}`
 - `POST /api/v1/qr/tickets`
 
 DTO:
@@ -703,7 +704,7 @@ type QrCreateTicketRequest = {
   departmentId: string;
   serviceId: string;
   citizenFullName?: string;
-  citizenPhone: string;
+  citizenPhone?: string;
   comment?: string;
 };
 ```
@@ -714,8 +715,11 @@ UI-требования:
 - На старте загрузить config и показывать только `services` из ответа; backend уже отфильтровал услуги по `qrEnabled`.
 - Для группировки услуг ТС использовать `categoryCode === 'TS'`, не `type`.
 - Не показывать и не отправлять ПИН в QR-сценарии; backend не хранит `citizenPin` для QR-талонов.
-- `citizenPhone` обязателен: backend использует нормализованный телефон, чтобы не выдавать одному посетителю второй QR-талон, пока предыдущий QR-талон в этом подразделении находится в `CREATED`, `WAITING`, `CALLED`, `IN_SERVICE` или `PAUSED`.
-- При повторной попытке backend вернет `409` с кодом `QR_CITIZEN_HAS_UNFINISHED_TICKET`; после `COMPLETED`, `CANCELLED`, `NO_SHOW`, `EXPIRED` или `TRANSFERRED` можно взять новый талон.
+- После успешного `POST /api/v1/qr/tickets` сохранить текущий талон в localStorage/sessionStorage минимум как `{ ticketId, departmentId }`; можно дополнительно сохранить `ticketNumber`, `status`, `createdAt`.
+- При открытии QR-страницы сначала проверить сохраненный `ticketId`. Если он есть, вызвать `GET /api/v1/qr/tickets/{ticketId}`. Если backend вернул QR-талон в незавершенном статусе `CREATED`, `WAITING`, `CALLED`, `IN_SERVICE` или `PAUSED`, показывать страницу текущего талона вместо формы создания.
+- Пока текущий талон не финальный, не показывать кнопку/форму получения нового талона на этом телефоне/браузере. Статус отслеживать polling-запросом `GET /api/v1/qr/tickets/{ticketId}` каждые 5-10 секунд или при возврате вкладки в фокус.
+- Если статус стал `COMPLETED`, `CANCELLED`, `NO_SHOW`, `EXPIRED` или `TRANSFERRED`, очистить сохраненный `ticketId` и разрешить взять новый талон.
+- Если `GET /api/v1/qr/tickets/{ticketId}` вернул `404 QR_TICKET_NOT_FOUND`, очистить сохраненный `ticketId` и показать форму.
 - После выбора услуги отправить `POST /api/v1/qr/tickets`; в ответе показать `ticketNumber` и `status`.
 - Не отправлять `Authorization`, `X-Device-Token`, `X-API-Key` или integration headers из публичной QR-страницы.
 

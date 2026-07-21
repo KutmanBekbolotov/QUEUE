@@ -93,6 +93,16 @@ class QrSelfServiceServiceTest {
         assertThat(ticketService.request.comment()).isEqualTo("from qr");
     }
 
+    @Test
+    void ticketReadsQrSelfServiceTicketById() {
+        UUID ticketId = UUID.randomUUID();
+
+        qrSelfServiceService.ticket(ticketId);
+
+        assertThat(ticketService.readCalls).isEqualTo(1);
+        assertThat(ticketService.ticketId).isEqualTo(ticketId);
+    }
+
     private DepartmentEntity department(UUID departmentId) {
         DepartmentEntity department = new DepartmentEntity();
         ReflectionTestUtils.setField(department, "id", departmentId);
@@ -133,7 +143,9 @@ class QrSelfServiceServiceTest {
 
     static class CapturingTicketService extends TicketService {
         int calls;
+        int readCalls;
         CreateTicketRequest request;
+        UUID ticketId;
 
         CapturingTicketService() {
             super(null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
@@ -143,6 +155,13 @@ class QrSelfServiceServiceTest {
         public TicketResponse createSelfServiceTicket(CreateTicketRequest request, HttpServletRequest httpRequest) {
             this.calls++;
             this.request = request;
+            return null;
+        }
+
+        @Override
+        public TicketResponse getQrSelfServiceTicket(UUID ticketId) {
+            this.readCalls++;
+            this.ticketId = ticketId;
             return null;
         }
     }
