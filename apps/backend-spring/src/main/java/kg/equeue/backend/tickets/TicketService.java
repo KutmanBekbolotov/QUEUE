@@ -8,7 +8,9 @@ import java.time.LocalDate;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import kg.equeue.backend.audit.AuditService;
 import kg.equeue.backend.cancellationreasons.CancellationReasonRepository;
 import kg.equeue.backend.common.ApiException;
@@ -34,6 +36,7 @@ import kg.equeue.backend.tickets.TicketDtos.CallNextTicketRequest;
 import kg.equeue.backend.tickets.TicketDtos.CallTicketRequest;
 import kg.equeue.backend.tickets.TicketDtos.CancelTicketRequest;
 import kg.equeue.backend.tickets.TicketDtos.CreateTicketRequest;
+import kg.equeue.backend.tickets.TicketDtos.LocalizedName;
 import kg.equeue.backend.tickets.TicketDtos.PauseTicketRequest;
 import kg.equeue.backend.tickets.TicketDtos.TicketResponse;
 import kg.equeue.backend.tickets.TicketDtos.TransferTicketRequest;
@@ -387,10 +390,24 @@ public class TicketService {
     }
 
     private TvSnapshotResponse tvSnapshotUnchecked(UUID departmentId) {
-        List<TicketResponse> tickets = ticketRepository
-                .findTop20ByDepartmentIdAndStatusInOrderByCalledAtDescCreatedAtDesc(departmentId, TV_STATUSES)
+        List<TicketEntity> activeTickets = ticketRepository
+                .findTop20ByDepartmentIdAndStatusInOrderByCalledAtDescCreatedAtDesc(departmentId, TV_STATUSES);
+        Map<UUID, QueueServiceEntity> servicesById = queueServiceRepository.findAllById(activeTickets.stream()
+                        .map(TicketEntity::getServiceId)
+                        .filter(Objects::nonNull)
+                        .distinct()
+                        .toList())
                 .stream()
-                .map(this::response)
+                .collect(Collectors.toMap(QueueServiceEntity::getId, service -> service, (first, second) -> first));
+        Map<UUID, ServiceWindowEntity> windowsById = serviceWindowRepository.findAllById(activeTickets.stream()
+                        .map(TicketEntity::getWindowId)
+                        .filter(Objects::nonNull)
+                        .distinct()
+                        .toList())
+                .stream()
+                .collect(Collectors.toMap(ServiceWindowEntity::getId, window -> window, (first, second) -> first));
+        List<TicketResponse> tickets = activeTickets.stream()
+                .map(ticket -> response(ticket, servicesById.get(ticket.getServiceId()), windowsById.get(ticket.getWindowId())))
                 .toList();
         return new TvSnapshotResponse(departmentId, tickets, Instant.now());
     }
@@ -603,6 +620,10 @@ public class TicketService {
     }
 
     private TicketResponse response(TicketEntity ticket) {
+        return response(ticket, null, null);
+    }
+
+    private TicketResponse response(TicketEntity ticket, QueueServiceEntity service, ServiceWindowEntity window) {
         return new TicketResponse(
                 ticket.getId(),
                 ticket.getTicketNumber(),
@@ -633,8 +654,29 @@ public class TicketService {
                 ticket.getPauseReasonId(),
                 ticket.getServedByUserId(),
                 ticket.getComment(),
-                ticket.getVersion()
+                ticket.getVersion(),
+                ticket.getServedByUserId(),
+                ticket.getWindowId(),
+                windowNumber(window),
+                serviceName(service)
         );
+    }
+
+    private String windowNumber(ServiceWindowEntity window) {
+        if (window == null) {
+            return null;
+        }
+        if (window.getDisplayName() != null && !window.getDisplayName().isBlank()) {
+            return window.getDisplayName();
+        }
+        return window.getCode();
+    }
+
+    private LocalizedName serviceName(QueueServiceEntity service) {
+        if (service == null || service.getName() == null || service.getName().isBlank()) {
+            return null;
+        }
+        return new LocalizedName(service.getName(), service.getName());
     }
 
     private ApiException invalidTransition(TicketStatus from, TicketStatus to) {

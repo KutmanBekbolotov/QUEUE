@@ -719,6 +719,10 @@ type TicketResponse = {
   cancellationReasonId: string | null;
   pauseReasonId: string | null;
   servedByUserId: string | null;
+  operatorId: string | null;
+  serviceWindowId: string | null;
+  windowNumber: string | null;
+  serviceName: LocalizedName | null;
   comment: string | null;
   version: number;
 };
@@ -1030,7 +1034,7 @@ type TvSnapshotResponse = {
 };
 ```
 
-Snapshot возвращает до 20 последних tickets со статусами `CALLED` и `IN_SERVICE`.
+Snapshot возвращает до 20 последних tickets со статусами `CALLED`, `IN_SERVICE` и `PAUSED`. Для TV snapshot backend заполняет `windowId`, `serviceWindowId`, `operatorId`, `windowNumber` и `serviceName`; `serviceName` имеет форму `{ ru, ky }`.
 
 ### 11.4. Device registry
 

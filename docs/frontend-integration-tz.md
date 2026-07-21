@@ -581,6 +581,19 @@ type TransferTicketRequest = {
   targetWindowId?: string;
   comment?: string;
 };
+
+type TicketResponse = {
+  id: string;
+  ticketNumber: string;
+  windowId: string | null;
+  serviceWindowId: string | null;
+  windowNumber: string | null;
+  serviceId: string;
+  serviceName: LocalizedName | null;
+  servedByUserId: string | null;
+  operatorId: string | null;
+  status: TicketStatus;
+};
 ```
 
 Разрешенные переходы статусов:
@@ -746,6 +759,7 @@ UI-требования:
 - Затем подключить SSE stream.
 - При обрыве stream переподключаться с backoff 1s, 2s, 5s, 10s, 30s.
 - Показывать только актуальные вызванные/обслуживаемые/приостановленные талоны. Backend snapshot ориентирован на `CALLED`, `IN_SERVICE` и `PAUSED`.
+- В `tickets[]` backend заполняет `windowId`, `serviceWindowId`, `operatorId`, `windowNumber` и `serviceName`, чтобы TV мог показать номер окна и название услуги без дополнительных справочников.
 - Для звука можно слушать `ticket_called` и `ticket_recalled`; backend также продолжает отправлять canonical имена `ticket.called` и `ticket.recalled`.
 
 ### 7.10. Онлайн-бронирование и слоты

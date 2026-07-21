@@ -50,6 +50,9 @@ public final class TicketDtos {
     ) {
     }
 
+    public record LocalizedName(String ru, String ky) {
+    }
+
     public record TicketResponse(
             UUID id,
             String ticketNumber,
@@ -80,7 +83,11 @@ public final class TicketDtos {
             UUID pauseReasonId,
             UUID servedByUserId,
             String comment,
-            long version
+            long version,
+            UUID operatorId,
+            UUID serviceWindowId,
+            String windowNumber,
+            LocalizedName serviceName
     ) {
     }
 
