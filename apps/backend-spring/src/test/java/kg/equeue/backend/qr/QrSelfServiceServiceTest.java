@@ -78,7 +78,6 @@ class QrSelfServiceServiceTest {
                 departmentId,
                 serviceId,
                 "Citizen",
-                "123",
                 "+996700000000",
                 "from qr"
         );
@@ -90,6 +89,7 @@ class QrSelfServiceServiceTest {
         assertThat(ticketService.request.serviceId()).isEqualTo(serviceId);
         assertThat(ticketService.request.source()).isEqualTo(TicketSource.QR_SELF_SERVICE);
         assertThat(ticketService.request.citizenFullName()).isEqualTo("Citizen");
+        assertThat(ticketService.request.citizenPin()).isNull();
         assertThat(ticketService.request.comment()).isEqualTo("from qr");
     }
 

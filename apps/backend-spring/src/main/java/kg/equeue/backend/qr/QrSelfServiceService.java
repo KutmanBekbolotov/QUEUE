@@ -95,7 +95,7 @@ public class QrSelfServiceService {
                 request.serviceId(),
                 null,
                 request.citizenFullName(),
-                request.citizenPin(),
+                null,
                 request.citizenPhone(),
                 TicketSource.QR_SELF_SERVICE,
                 request.comment(),

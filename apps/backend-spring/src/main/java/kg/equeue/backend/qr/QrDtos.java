@@ -1,5 +1,6 @@
 package kg.equeue.backend.qr;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.validation.constraints.NotNull;
 import java.util.List;
 import java.util.UUID;
@@ -37,11 +38,11 @@ public final class QrDtos {
     ) {
     }
 
+    @JsonIgnoreProperties(ignoreUnknown = true)
     public record QrCreateTicketRequest(
             @NotNull UUID departmentId,
             @NotNull UUID serviceId,
             String citizenFullName,
-            String citizenPin,
             String citizenPhone,
             String comment
     ) {

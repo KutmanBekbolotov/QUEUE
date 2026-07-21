@@ -1005,13 +1005,12 @@ type QrCreateTicketRequest = {
   departmentId: string;
   serviceId: string;
   citizenFullName?: string;
-  citizenPin?: string;
   citizenPhone?: string;
   comment?: string;
 };
 ```
 
-QR config возвращает только активные услуги подразделения, у которых включён `qrEnabled`, а также активна сама услуга и категория. `POST /tickets` создаёт талон с `source = QR_SELF_SERVICE`; backend дополнительно проверяет `qrEnabled` перед созданием.
+QR config возвращает только активные услуги подразделения, у которых включён `qrEnabled`, а также активна сама услуга и категория. `POST /tickets` создаёт талон с `source = QR_SELF_SERVICE`; backend дополнительно проверяет `qrEnabled` перед созданием. ПИН в QR-сценарии не принимается и не хранится: `citizenPin` для QR-талона всегда `null`.
 
 ### 11.3. TV Display
 
@@ -1394,7 +1393,8 @@ Spring direct flow is:
 2. Frontend loads config: `GET /api/v1/qr/departments/{departmentId}/config`.
 3. Frontend shows returned `services`; for ТС grouping/filtering use `service.categoryCode === "TS"`.
 4. Citizen selects a service and frontend creates ticket: `POST /api/v1/qr/tickets`.
-5. Show `ticketNumber` and current `status`; source is created as `QR_SELF_SERVICE`.
+5. Frontend does not show or submit PIN in this flow.
+6. Show `ticketNumber` and current `status`; source is created as `QR_SELF_SERVICE`.
 
 ### 17.6. TV flow
 

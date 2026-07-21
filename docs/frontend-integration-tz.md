@@ -703,7 +703,6 @@ type QrCreateTicketRequest = {
   departmentId: string;
   serviceId: string;
   citizenFullName?: string;
-  citizenPin?: string;
   citizenPhone?: string;
   comment?: string;
 };
@@ -714,6 +713,7 @@ UI-требования:
 - QR-ссылка должна открыть публичный маршрут фронта с `departmentId`.
 - На старте загрузить config и показывать только `services` из ответа; backend уже отфильтровал услуги по `qrEnabled`.
 - Для группировки услуг ТС использовать `categoryCode === 'TS'`, не `type`.
+- Не показывать и не отправлять ПИН в QR-сценарии; backend не хранит `citizenPin` для QR-талонов.
 - После выбора услуги отправить `POST /api/v1/qr/tickets`; в ответе показать `ticketNumber` и `status`.
 - Не отправлять `Authorization`, `X-Device-Token`, `X-API-Key` или integration headers из публичной QR-страницы.
 
