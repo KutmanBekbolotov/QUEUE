@@ -604,10 +604,12 @@ type TicketResponse = {
 - `PAUSED -> IN_SERVICE | CANCELLED`
 
 Фронт должен блокировать кнопки, которые не соответствуют текущему статусу, но окончательную проверку оставлять backend.
+Повторный `POST /api/v1/tickets/call-next`, когда у оператора или окна уже есть активный талон, возвращает этот активный `TicketResponse` без ошибки; фронт должен показать его как текущий талон и не считать это неуспешным вызовом.
 
 SSE:
 
 - Подключение: `new EventSource('/api/v1/operator/{windowId}/stream')`.
+- Stream привязан к окну для прав доступа, но backend также подписывает подключение на события всего подразделения. Фронт должен слушать `ticket.created`, `ticket.called`, `ticket.started`, `ticket.completed`, `ticket.cancelled`, `ticket.no_show`, `ticket.transferred` и по ним обновлять список ожидания/активный талон без перезагрузки страницы.
 - Так как native `EventSource` не позволяет отправлять `Authorization` header, для защищенного SSE нужны один из вариантов:
   - использовать fetch-based SSE polyfill с headers;
   - проксировать SSE через BFF;

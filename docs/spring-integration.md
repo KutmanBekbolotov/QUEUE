@@ -743,7 +743,8 @@ Important rules:
 
 - `call` and `call-next` требуют открытое окно (`WindowStatus.OPEN`) в том же department.
 - `call-next` выбирает первый `WAITING` ticket по `priority DESC, created_at ASC`.
-- Для одного окна и одного оператора одновременно разрешён только один активный ticket в статусе `CALLED`, `IN_SERVICE` или `PAUSED`; конфликт возвращает `409 OPERATOR_HAS_ACTIVE_TICKET`.
+- Для одного окна и одного оператора одновременно разрешён только один активный ticket в статусе `CALLED`, `IN_SERVICE` или `PAUSED`.
+- Если `call-next` вызван повторно, когда у оператора или окна уже есть активный ticket, backend возвращает текущий активный `TicketResponse` без ошибки. Конфликт `409 OPERATOR_HAS_ACTIVE_TICKET` остается защитой для прямого `call` и гонок на уровне переходов.
 - `recall` и повторный `call` для уже вызванного ticket не меняют статус, обновляют `calledAt`/`recalledAt`, увеличивают `recallCount` и публикуют `ticket.recalled`.
 - `cancel` требует `cancellationReasonId` или `comment`.
 - `pauseReasonId` и `cancellationReasonId` проверяются на существование.
@@ -1082,10 +1083,10 @@ Backend проверяет доступ к окну. При подключени
 
 ```text
 event: connected
-data: {"key":"<windowId>"}
+data: {"windowId":"<windowId>","departmentId":"<departmentId>"}
 ```
 
-Далее публикуются ticket domain events для этого окна.
+Далее публикуются ticket domain events для этого окна и для очереди всего подразделения. Поэтому operator stream получает события ожидающей очереди без `windowId`, например `ticket.created`, а также события вызова/обслуживания с `windowId`.
 
 ### 12.2. TV stream
 

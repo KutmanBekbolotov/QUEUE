@@ -224,7 +224,7 @@ public class TicketService {
         TicketEntity ticket = ticketRepository.findById(id)
                 .filter(found -> found.getSource() == TicketSource.QR_SELF_SERVICE)
                 .orElseThrow(() -> notFound("QR_TICKET_NOT_FOUND", "QR ticket was not found"));
-        return response(ticket);
+        return responseWithDisplayFields(ticket);
     }
 
     @Transactional
@@ -254,6 +254,11 @@ public class TicketService {
         departmentScopeService.requireDepartmentAccess(request.departmentId());
         ServiceWindowEntity window = validOpenWindow(request.windowId(), request.departmentId());
         requireCanUseWindow(window);
+        UUID operatorId = CurrentUser.idOrNull();
+        TicketResponse activeTicket = currentActiveTicketForCallNext(window.getId(), operatorId);
+        if (activeTicket != null) {
+            return activeTicket;
+        }
 
         List<UUID> ids = jdbcTemplate.queryForList("""
                 SELECT id
@@ -383,8 +388,21 @@ public class TicketService {
         if (operatorId != null) {
             return ticketRepository
                     .findFirstByServedByUserIdAndStatusInOrderByCalledAtDescCreatedAtDesc(operatorId, ACTIVE_TICKET_STATUSES)
-                    .map(this::response)
+                    .map(this::responseWithDisplayFields)
                     .orElseGet(() -> activeTicketForWindow(windowId));
+        }
+        return activeTicketForWindow(windowId);
+    }
+
+    private TicketResponse currentActiveTicketForCallNext(UUID windowId, UUID operatorId) {
+        if (operatorId != null) {
+            TicketResponse operatorActive = ticketRepository
+                    .findFirstByServedByUserIdAndStatusInOrderByCalledAtDescCreatedAtDesc(operatorId, ACTIVE_TICKET_STATUSES)
+                    .map(this::responseWithDisplayFields)
+                    .orElse(null);
+            if (operatorActive != null) {
+                return operatorActive;
+            }
         }
         return activeTicketForWindow(windowId);
     }
@@ -418,7 +436,7 @@ public class TicketService {
         }
         return ticketRepository
                 .findFirstByWindowIdAndStatusInOrderByCalledAtDescCreatedAtDesc(windowId, ACTIVE_TICKET_STATUSES)
-                .map(this::response)
+                .map(this::responseWithDisplayFields)
                 .orElse(null);
     }
 
@@ -621,6 +639,16 @@ public class TicketService {
 
     private TicketResponse response(TicketEntity ticket) {
         return response(ticket, null, null);
+    }
+
+    private TicketResponse responseWithDisplayFields(TicketEntity ticket) {
+        QueueServiceEntity service = ticket.getServiceId() == null || queueServiceRepository == null
+                ? null
+                : queueServiceRepository.findById(ticket.getServiceId()).orElse(null);
+        ServiceWindowEntity window = ticket.getWindowId() == null || serviceWindowRepository == null
+                ? null
+                : serviceWindowRepository.findById(ticket.getWindowId()).orElse(null);
+        return response(ticket, service, window);
     }
 
     private TicketResponse response(TicketEntity ticket, QueueServiceEntity service, ServiceWindowEntity window) {

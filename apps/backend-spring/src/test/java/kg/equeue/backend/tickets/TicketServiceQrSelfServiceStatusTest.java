@@ -9,22 +9,28 @@ import java.time.LocalDate;
 import java.util.Optional;
 import java.util.UUID;
 import kg.equeue.backend.common.ApiException;
+import kg.equeue.backend.services.QueueServiceEntity;
+import kg.equeue.backend.services.QueueServiceRepository;
+import kg.equeue.backend.servicewindows.ServiceWindowEntity;
+import kg.equeue.backend.servicewindows.ServiceWindowRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
 
 class TicketServiceQrSelfServiceStatusTest {
 
     private final TicketRepository ticketRepository = mock(TicketRepository.class);
+    private final QueueServiceRepository queueServiceRepository = mock(QueueServiceRepository.class);
+    private final ServiceWindowRepository serviceWindowRepository = mock(ServiceWindowRepository.class);
     private final TicketService ticketService = new TicketService(
             ticketRepository,
             null,
             null,
             null,
             null,
+            queueServiceRepository,
             null,
             null,
-            null,
-            null,
+            serviceWindowRepository,
             null,
             null,
             null,
@@ -35,21 +41,30 @@ class TicketServiceQrSelfServiceStatusTest {
     );
 
     @Test
-    void getQrSelfServiceTicketReturnsQrTicketStatus() {
-        TicketEntity ticket = ticket(TicketSource.QR_SELF_SERVICE, TicketStatus.WAITING);
+    void getQrSelfServiceTicketReturnsQrTicketStatusAndDisplayFields() {
+        UUID serviceId = UUID.randomUUID();
+        UUID windowId = UUID.randomUUID();
+        TicketEntity ticket = ticket(TicketSource.QR_SELF_SERVICE, TicketStatus.CALLED, serviceId, windowId);
         when(ticketRepository.findById(ticket.getId())).thenReturn(Optional.of(ticket));
+        when(queueServiceRepository.findById(serviceId)).thenReturn(Optional.of(service(serviceId, "Vehicle registration")));
+        when(serviceWindowRepository.findById(windowId)).thenReturn(Optional.of(window(windowId, "5", "Window 5")));
 
         TicketDtos.TicketResponse response = ticketService.getQrSelfServiceTicket(ticket.getId());
 
         assertThat(response.id()).isEqualTo(ticket.getId());
         assertThat(response.ticketNumber()).isEqualTo("A-001");
         assertThat(response.source()).isEqualTo(TicketSource.QR_SELF_SERVICE);
-        assertThat(response.status()).isEqualTo(TicketStatus.WAITING);
+        assertThat(response.status()).isEqualTo(TicketStatus.CALLED);
+        assertThat(response.windowId()).isEqualTo(windowId);
+        assertThat(response.serviceWindowId()).isEqualTo(windowId);
+        assertThat(response.windowNumber()).isEqualTo("Window 5");
+        assertThat(response.serviceName()).isNotNull();
+        assertThat(response.serviceName().ru()).isEqualTo("Vehicle registration");
     }
 
     @Test
     void getQrSelfServiceTicketHidesNonQrTickets() {
-        TicketEntity ticket = ticket(TicketSource.TERMINAL, TicketStatus.WAITING);
+        TicketEntity ticket = ticket(TicketSource.TERMINAL, TicketStatus.WAITING, UUID.randomUUID(), null);
         when(ticketRepository.findById(ticket.getId())).thenReturn(Optional.of(ticket));
 
         assertThatThrownBy(() -> ticketService.getQrSelfServiceTicket(ticket.getId()))
@@ -71,7 +86,7 @@ class TicketServiceQrSelfServiceStatusTest {
                 });
     }
 
-    private TicketEntity ticket(TicketSource source, TicketStatus status) {
+    private TicketEntity ticket(TicketSource source, TicketStatus status, UUID serviceId, UUID windowId) {
         TicketEntity ticket = new TicketEntity();
         ReflectionTestUtils.setField(ticket, "id", UUID.randomUUID());
         ticket.setTicketNumber("A-001");
@@ -80,11 +95,31 @@ class TicketServiceQrSelfServiceStatusTest {
         ticket.setWorkDate(LocalDate.now());
         ticket.setDepartmentId(UUID.randomUUID());
         ticket.setCategoryId(UUID.randomUUID());
-        ticket.setServiceId(UUID.randomUUID());
+        ticket.setServiceId(serviceId);
+        ticket.setWindowId(windowId);
         ticket.setCitizenFullName("Citizen");
         ticket.setCitizenPhone("+996700000000");
         ticket.setSource(source);
         ticket.setStatus(status);
         return ticket;
+    }
+
+    private QueueServiceEntity service(UUID serviceId, String name) {
+        QueueServiceEntity service = new QueueServiceEntity();
+        ReflectionTestUtils.setField(service, "id", serviceId);
+        service.setCategoryId(UUID.randomUUID());
+        service.setCode("SERVICE");
+        service.setName(name);
+        return service;
+    }
+
+    private ServiceWindowEntity window(UUID windowId, String code, String displayName) {
+        ServiceWindowEntity window = new ServiceWindowEntity();
+        ReflectionTestUtils.setField(window, "id", windowId);
+        window.setDepartmentId(UUID.randomUUID());
+        window.setHallId(UUID.randomUUID());
+        window.setCode(code);
+        window.setDisplayName(displayName);
+        return window;
     }
 }

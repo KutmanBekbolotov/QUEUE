@@ -17,20 +17,55 @@ public class TicketSseService {
     private static final long STREAM_TIMEOUT_MS = Duration.ofMinutes(5).toMillis();
 
     private final Map<UUID, Set<SseEmitter>> tvEmitters = new ConcurrentHashMap<>();
-    private final Map<UUID, Set<SseEmitter>> operatorEmitters = new ConcurrentHashMap<>();
+    private final Map<UUID, Set<SseEmitter>> operatorWindowEmitters = new ConcurrentHashMap<>();
+    private final Map<UUID, Set<SseEmitter>> operatorDepartmentEmitters = new ConcurrentHashMap<>();
 
     public SseEmitter registerTv(UUID departmentId) {
         return register(tvEmitters, departmentId);
     }
 
-    public SseEmitter registerOperator(UUID windowId) {
-        return register(operatorEmitters, windowId);
+    public SseEmitter registerOperator(UUID windowId, UUID departmentId) {
+        SseEmitter emitter = new SseEmitter(STREAM_TIMEOUT_MS);
+        operatorWindowEmitters.computeIfAbsent(windowId, ignored -> ConcurrentHashMap.newKeySet()).add(emitter);
+        operatorDepartmentEmitters.computeIfAbsent(departmentId, ignored -> ConcurrentHashMap.newKeySet()).add(emitter);
+        Runnable cleanup = () -> {
+            cleanup(operatorWindowEmitters, windowId, emitter);
+            cleanup(operatorDepartmentEmitters, departmentId, emitter);
+        };
+        emitter.onCompletion(cleanup);
+        emitter.onTimeout(() -> {
+            cleanup.run();
+            emitter.complete();
+        });
+        emitter.onError(error -> cleanup.run());
+        try {
+            emitter.send(SseEmitter.event().comment("connected"));
+            emitter.send(SseEmitter.event().name("connected").data(Map.of(
+                    "windowId", windowId.toString(),
+                    "departmentId", departmentId.toString()
+            )));
+        } catch (IOException ex) {
+            cleanup.run();
+            emitter.completeWithError(ex);
+        }
+        return emitter;
     }
 
     public void publish(TicketDomainEventPublisher.TicketDomainEvent event) {
         publishTo(tvEmitters.get(event.departmentId()), event);
+        Set<SseEmitter> operatorTargets = new LinkedHashSet<>();
+        Set<SseEmitter> departmentEmitters = operatorDepartmentEmitters.get(event.departmentId());
+        if (departmentEmitters != null) {
+            operatorTargets.addAll(departmentEmitters);
+        }
         if (event.windowId() != null) {
-            publishTo(operatorEmitters.get(event.windowId()), event);
+            Set<SseEmitter> windowEmitters = operatorWindowEmitters.get(event.windowId());
+            if (windowEmitters != null) {
+                operatorTargets.addAll(windowEmitters);
+            }
+        }
+        if (!operatorTargets.isEmpty()) {
+            publishTo(operatorTargets, event);
         }
     }
 
@@ -81,7 +116,8 @@ public class TicketSseService {
     @Scheduled(fixedDelayString = "${app.sse.heartbeat-ms:25000}")
     void heartbeat() {
         heartbeat(tvEmitters);
-        heartbeat(operatorEmitters);
+        heartbeat(operatorWindowEmitters);
+        heartbeat(operatorDepartmentEmitters);
     }
 
     private void heartbeat(Map<UUID, Set<SseEmitter>> registry) {

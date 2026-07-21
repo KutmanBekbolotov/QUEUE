@@ -18,6 +18,7 @@ import java.util.UUID;
 import kg.equeue.backend.audit.AuditService;
 import kg.equeue.backend.auth.AuthenticatedPrincipal;
 import kg.equeue.backend.common.ApiException;
+import kg.equeue.backend.common.DepartmentScopeService;
 import kg.equeue.backend.servicewindows.ServiceWindowEntity;
 import kg.equeue.backend.servicewindows.ServiceWindowRepository;
 import kg.equeue.backend.servicewindows.WindowStatus;
@@ -41,6 +42,7 @@ class TicketServiceCallTest {
     private final TicketDomainEventPublisher ticketDomainEventPublisher = new NoopTicketDomainEventPublisher();
     private final ServiceWindowRepository serviceWindowRepository = mock(ServiceWindowRepository.class);
     private final AuditService auditService = new NoopAuditService();
+    private final DepartmentScopeService departmentScopeService = new NoopDepartmentScopeService();
     private final TicketService ticketService = new TicketService(
             ticketRepository,
             ticketEventRepository,
@@ -53,7 +55,7 @@ class TicketServiceCallTest {
             serviceWindowRepository,
             null,
             null,
-            null,
+            departmentScopeService,
             auditService,
             null,
             new ObjectMapper(),
@@ -129,6 +131,35 @@ class TicketServiceCallTest {
         verify(ticketRepository, never()).save(any(TicketEntity.class));
     }
 
+    @Test
+    void callNextReturnsCurrentActiveTicketForWindowInsteadOfConflict() {
+        UUID departmentId = UUID.randomUUID();
+        UUID windowId = UUID.randomUUID();
+        UUID serviceId = UUID.randomUUID();
+        TicketEntity ticket = ticket(departmentId, TicketStatus.CALLED);
+        ticket.setServiceId(serviceId);
+        ticket.setWindowId(windowId);
+        ServiceWindowEntity window = openWindow(windowId, departmentId);
+        when(serviceWindowRepository.findWithLockById(windowId)).thenReturn(Optional.of(window));
+        when(serviceWindowRepository.findById(windowId)).thenReturn(Optional.of(window));
+        when(ticketRepository.findFirstByServedByUserIdAndStatusInOrderByCalledAtDescCreatedAtDesc(
+                any(), any()
+        )).thenReturn(Optional.empty());
+        when(ticketRepository.findFirstByWindowIdAndStatusInOrderByCalledAtDescCreatedAtDesc(
+                any(), any()
+        )).thenReturn(Optional.of(ticket));
+
+        TicketDtos.TicketResponse response = ticketService.callNext(
+                new TicketDtos.CallNextTicketRequest(departmentId, windowId, List.of(serviceId)),
+                new MockHttpServletRequest()
+        );
+
+        assertThat(response.id()).isEqualTo(ticket.getId());
+        assertThat(response.status()).isEqualTo(TicketStatus.CALLED);
+        assertThat(response.windowId()).isEqualTo(windowId);
+        assertThat(response.windowNumber()).isEqualTo("Window");
+    }
+
     private TicketEntity ticket(UUID departmentId, TicketStatus status) {
         UUID ticketId = UUID.randomUUID();
         TicketEntity ticket = new TicketEntity();
@@ -174,6 +205,20 @@ class TicketServiceCallTest {
 
         @Override
         public void write(String action, String entityType, UUID entityId, String newValue, HttpServletRequest request) {
+        }
+    }
+
+    static class NoopDepartmentScopeService extends DepartmentScopeService {
+        NoopDepartmentScopeService() {
+            super(null);
+        }
+
+        @Override
+        public void requireDepartmentAccess(UUID departmentId) {
+        }
+
+        @Override
+        public void requireWindowAccess(UUID windowId) {
         }
     }
 }
