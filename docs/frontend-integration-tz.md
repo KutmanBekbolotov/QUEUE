@@ -703,7 +703,7 @@ type QrCreateTicketRequest = {
   departmentId: string;
   serviceId: string;
   citizenFullName?: string;
-  citizenPhone?: string;
+  citizenPhone: string;
   comment?: string;
 };
 ```
@@ -714,6 +714,8 @@ UI-требования:
 - На старте загрузить config и показывать только `services` из ответа; backend уже отфильтровал услуги по `qrEnabled`.
 - Для группировки услуг ТС использовать `categoryCode === 'TS'`, не `type`.
 - Не показывать и не отправлять ПИН в QR-сценарии; backend не хранит `citizenPin` для QR-талонов.
+- `citizenPhone` обязателен: backend использует нормализованный телефон, чтобы не выдавать одному посетителю второй QR-талон, пока предыдущий QR-талон в этом подразделении находится в `CREATED`, `WAITING`, `CALLED`, `IN_SERVICE` или `PAUSED`.
+- При повторной попытке backend вернет `409` с кодом `QR_CITIZEN_HAS_UNFINISHED_TICKET`; после `COMPLETED`, `CANCELLED`, `NO_SHOW`, `EXPIRED` или `TRANSFERRED` можно взять новый талон.
 - После выбора услуги отправить `POST /api/v1/qr/tickets`; в ответе показать `ticketNumber` и `status`.
 - Не отправлять `Authorization`, `X-Device-Token`, `X-API-Key` или integration headers из публичной QR-страницы.
 

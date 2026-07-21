@@ -1005,12 +1005,12 @@ type QrCreateTicketRequest = {
   departmentId: string;
   serviceId: string;
   citizenFullName?: string;
-  citizenPhone?: string;
+  citizenPhone: string;
   comment?: string;
 };
 ```
 
-QR config возвращает только активные услуги подразделения, у которых включён `qrEnabled`, а также активна сама услуга и категория. `POST /tickets` создаёт талон с `source = QR_SELF_SERVICE`; backend дополнительно проверяет `qrEnabled` перед созданием. ПИН в QR-сценарии не принимается и не хранится: `citizenPin` для QR-талона всегда `null`.
+QR config возвращает только активные услуги подразделения, у которых включён `qrEnabled`, а также активна сама услуга и категория. `POST /tickets` создаёт талон с `source = QR_SELF_SERVICE`; backend дополнительно проверяет `qrEnabled` перед созданием. ПИН в QR-сценарии не принимается и не хранится: `citizenPin` для QR-талона всегда `null`. `citizenPhone` обязателен и нормализуется до цифр; если в этом подразделении уже есть QR-талон с тем же телефоном в статусе `CREATED`, `WAITING`, `CALLED`, `IN_SERVICE` или `PAUSED`, backend вернет `409 QR_CITIZEN_HAS_UNFINISHED_TICKET`.
 
 ### 11.3. TV Display
 
