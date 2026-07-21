@@ -26,7 +26,9 @@ class RabbitMqConfigTest {
                 UUID.randomUUID(),
                 null,
                 UUID.randomUUID(),
+                UUID.randomUUID(),
                 TicketStatus.WAITING,
+                Instant.parse("2026-01-01T00:00:00Z"),
                 Instant.parse("2026-01-01T00:00:00Z"));
 
         var message = converter.toMessage(event, new MessageProperties());

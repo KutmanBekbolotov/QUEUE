@@ -2,6 +2,7 @@ package kg.equeue.backend.tickets;
 
 import java.io.IOException;
 import java.time.Duration;
+import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -44,6 +45,7 @@ public class TicketSseService {
         });
         emitter.onError(error -> cleanup.run());
         try {
+            emitter.send(SseEmitter.event().comment("connected"));
             emitter.send(SseEmitter.event().name("connected").data(Map.of("key", key.toString())));
         } catch (IOException ex) {
             close(registry, key, emitter, ex);
@@ -57,11 +59,23 @@ public class TicketSseService {
         }
         for (SseEmitter emitter : Set.copyOf(emitters)) {
             try {
-                emitter.send(SseEmitter.event().name(event.eventType()).data(event));
+                for (String eventName : sseEventNames(event.eventType())) {
+                    emitter.send(SseEmitter.event().name(eventName).data(event));
+                }
             } catch (IOException ex) {
                 close(emitters, emitter, ex);
             }
         }
+    }
+
+    private Set<String> sseEventNames(String eventType) {
+        Set<String> names = new LinkedHashSet<>();
+        names.add(eventType);
+        names.add(eventType.replace('.', '_'));
+        if ("ticket.paused".equals(eventType)) {
+            names.add("service_paused");
+        }
+        return names;
     }
 
     @Scheduled(fixedDelayString = "${app.sse.heartbeat-ms:25000}")

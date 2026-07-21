@@ -19,5 +19,8 @@ public interface TicketRepository extends JpaRepository<TicketEntity, UUID> {
     List<TicketEntity> findByDepartmentIdOrderByCreatedAtDesc(UUID departmentId);
 
     List<TicketEntity> findTop20ByDepartmentIdAndStatusInOrderByCalledAtDescCreatedAtDesc(UUID departmentId, Collection<TicketStatus> statuses);
-}
 
+    Optional<TicketEntity> findFirstByServedByUserIdAndStatusInOrderByCalledAtDescCreatedAtDesc(UUID servedByUserId, Collection<TicketStatus> statuses);
+
+    Optional<TicketEntity> findFirstByWindowIdAndStatusInOrderByCalledAtDescCreatedAtDesc(UUID windowId, Collection<TicketStatus> statuses);
+}

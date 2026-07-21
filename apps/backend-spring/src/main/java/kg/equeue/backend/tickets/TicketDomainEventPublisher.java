@@ -18,6 +18,7 @@ public class TicketDomainEventPublisher {
     }
 
     public TicketDomainEvent publish(String eventType, TicketEntity ticket) {
+        Instant now = Instant.now();
         TicketDomainEvent event = new TicketDomainEvent(
                 UUID.randomUUID(),
                 eventType,
@@ -25,9 +26,11 @@ public class TicketDomainEventPublisher {
                 ticket.getTicketNumber(),
                 ticket.getDepartmentId(),
                 ticket.getWindowId(),
+                ticket.getServedByUserId(),
                 ticket.getServiceId(),
                 ticket.getStatus(),
-                Instant.now()
+                now,
+                now
         );
         rabbitTemplate.convertAndSend(RabbitMqConfig.DOMAIN_EVENTS_EXCHANGE, eventType, event);
         ticketSseService.publish(event);
@@ -41,10 +44,11 @@ public class TicketDomainEventPublisher {
             String ticketNumber,
             UUID departmentId,
             UUID windowId,
+            UUID operatorId,
             UUID serviceId,
             TicketStatus status,
-            Instant occurredAt
+            Instant occurredAt,
+            Instant timestamp
     ) {
     }
 }
-

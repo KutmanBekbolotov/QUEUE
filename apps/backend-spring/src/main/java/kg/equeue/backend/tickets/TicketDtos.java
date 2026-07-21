@@ -70,6 +70,8 @@ public final class TicketDtos {
             TicketStatus status,
             Instant createdAt,
             Instant calledAt,
+            Instant recalledAt,
+            int recallCount,
             Instant serviceStartedAt,
             Instant servicePausedAt,
             Instant serviceCompletedAt,

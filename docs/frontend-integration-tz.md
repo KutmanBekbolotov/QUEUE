@@ -382,6 +382,7 @@ UI-требования:
 - Login, refresh и `GET /api/v1/auth/me` возвращают `departmentId`, `windowId`, `serviceIds`, `serviceCodes` и совместимый alias `services`; не подменять их пустыми значениями на фронте.
 - При редактировании пропущенное поле назначения означает «не менять», `windowId: ""` очищает окно, `serviceIds: []` очищает услуги.
 - Системные роли отображать как неизменяемые по смыслу, даже если backend разрешит часть операций.
+- Публичные формы могут читать `GET /api/v1/regions`, `GET /api/v1/departments`, `GET /api/v1/service-categories` и `GET /api/v1/departments/{departmentId}/services` без Bearer-токена; backend отдаёт только активные публичные записи.
 
 ### 7.4. Справочники
 
@@ -488,18 +489,22 @@ type DepartmentServiceRequest = {
 Основной сценарий:
 
 1. Оператор выбирает/получает свое окно.
-2. Открывает окно: `POST /api/v1/windows/{id}/open`.
-3. Получает список доступных услуг.
-4. Нажимает "вызвать следующего": `POST /api/v1/tickets/call-next`.
-5. Начинает обслуживание: `POST /api/v1/tickets/{id}/start`.
-6. Может поставить на паузу, возобновить, завершить, отменить, отметить неявку или перевести.
-7. Закрывает окно: `POST /api/v1/windows/{id}/close`.
+2. Открывает смену: `POST /api/v1/operators/{operatorId}/shifts/open`.
+3. Открывает окно: `POST /api/v1/windows/{id}/open`.
+4. Получает dashboard: `GET /api/v1/operators/{operatorId}/dashboard`.
+5. Нажимает "вызвать следующего": `POST /api/v1/tickets/call-next`.
+6. Начинает обслуживание: `POST /api/v1/tickets/{id}/start`.
+7. Может поставить на паузу, возобновить, завершить, отменить, отметить неявку или перевести.
+8. Повторяет вызов текущего талона: `POST /api/v1/tickets/{id}/recall`.
+9. Закрывает окно: `POST /api/v1/windows/{id}/close`.
+10. Закрывает смену: `POST /api/v1/operators/{operatorId}/shifts/current/close`.
 
 Endpoints:
 
 - `GET /api/v1/tickets?departmentId=...`
 - `GET /api/v1/tickets/{id}`
 - `POST /api/v1/tickets/{id}/call`
+- `POST /api/v1/tickets/{id}/recall`
 - `POST /api/v1/tickets/call-next`
 - `POST /api/v1/tickets/{id}/start`
 - `POST /api/v1/tickets/{id}/pause`
@@ -509,6 +514,9 @@ Endpoints:
 - `POST /api/v1/tickets/{id}/no-show`
 - `POST /api/v1/tickets/{id}/transfer`
 - `GET /api/v1/operator/{windowId}/stream`
+- `POST /api/v1/operators/{operatorId}/shifts/open`
+- `POST /api/v1/operators/{operatorId}/shifts/current/close`
+- `GET /api/v1/operators/{operatorId}/dashboard`
 
 DTO:
 
@@ -731,7 +739,8 @@ UI-требования:
 - На старте загрузить snapshot.
 - Затем подключить SSE stream.
 - При обрыве stream переподключаться с backoff 1s, 2s, 5s, 10s, 30s.
-- Показывать только актуальные вызванные/обслуживаемые талоны. Backend snapshot ориентирован на `CALLED` и `IN_SERVICE`.
+- Показывать только актуальные вызванные/обслуживаемые/приостановленные талоны. Backend snapshot ориентирован на `CALLED`, `IN_SERVICE` и `PAUSED`.
+- Для звука можно слушать `ticket_called` и `ticket_recalled`; backend также продолжает отправлять canonical имена `ticket.called` и `ticket.recalled`.
 
 ### 7.10. Онлайн-бронирование и слоты
 

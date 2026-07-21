@@ -18,6 +18,7 @@ import kg.equeue.backend.services.QueueServiceEntity;
 import kg.equeue.backend.services.QueueServiceRepository;
 import kg.equeue.backend.servicewindows.ServiceWindowEntity;
 import kg.equeue.backend.servicewindows.ServiceWindowRepository;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -133,7 +134,13 @@ public class UserAssignmentService {
                     });
             selected.setActive(true);
         }
-        serviceAssignmentRepository.saveAll(assignments);
+        try {
+            serviceAssignmentRepository.saveAll(assignments);
+            serviceAssignmentRepository.flush();
+        } catch (DataIntegrityViolationException ex) {
+            throw new ApiException(HttpStatus.CONFLICT, "EMPLOYEE_SERVICE_ASSIGNMENT_CONFLICT",
+                    "Employee service assignment conflicts with existing data");
+        }
     }
 
     private ServiceWindowEntity resolveWindow(String identifier, UUID departmentId) {

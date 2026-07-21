@@ -56,6 +56,12 @@ public class TicketController {
         return ticketService.call(id, request, httpRequest);
     }
 
+    @PostMapping("/{id}/recall")
+    @PreAuthorize("hasAuthority('TICKET_CALL')")
+    TicketResponse recall(@PathVariable UUID id, HttpServletRequest httpRequest) {
+        return ticketService.recall(id, httpRequest);
+    }
+
     @PostMapping("/call-next")
     @PreAuthorize("hasAuthority('TICKET_CALL')")
     TicketResponse callNext(@Valid @RequestBody CallNextTicketRequest request, HttpServletRequest httpRequest) {

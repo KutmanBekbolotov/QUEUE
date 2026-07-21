@@ -2,9 +2,11 @@ package kg.equeue.backend.directories;
 
 import jakarta.servlet.http.HttpServletRequest;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import kg.equeue.backend.audit.AuditService;
 import kg.equeue.backend.common.ApiException;
+import kg.equeue.backend.common.CurrentUser;
 import kg.equeue.backend.common.DepartmentScopeService;
 import kg.equeue.backend.departmentservices.DepartmentServiceEntity;
 import kg.equeue.backend.departmentservices.DepartmentServiceRepository;
@@ -51,6 +53,7 @@ import kg.equeue.backend.servicewindows.ServiceWindowRepository;
 import kg.equeue.backend.servicewindows.WindowStatus;
 import kg.equeue.backend.users.UserAssignmentService;
 import kg.equeue.backend.users.UserDepartmentScopeRepository;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -105,7 +108,10 @@ public class DirectoryService {
 
     @Transactional(readOnly = true)
     public List<RegionResponse> regions() {
-        return regionRepository.findAllByOrderByNameAsc().stream().map(this::regionResponse).toList();
+        return regionRepository.findAllByOrderByNameAsc().stream()
+                .filter(region -> canReadProtectedDirectory("REGION_READ") || region.isActive())
+                .map(this::regionResponse)
+                .toList();
     }
 
     @Transactional(readOnly = true)
@@ -148,7 +154,9 @@ public class DirectoryService {
     @Transactional(readOnly = true)
     public List<DepartmentResponse> departments() {
         return departmentRepository.findAllByOrderByNameAsc().stream()
-                .filter(department -> departmentScopeService.canAccessDepartment(department.getId()))
+                .filter(department -> canReadProtectedDirectory("DEPARTMENT_READ")
+                        ? departmentScopeService.canAccessDepartment(department.getId())
+                        : department.isActive() && !department.isClosed())
                 .map(this::departmentResponse)
                 .toList();
     }
@@ -392,7 +400,10 @@ public class DirectoryService {
 
     @Transactional(readOnly = true)
     public List<ServiceCategoryResponse> serviceCategories() {
-        return serviceCategoryRepository.findAllByOrderByNameAsc().stream().map(this::categoryResponse).toList();
+        return serviceCategoryRepository.findAllByOrderByNameAsc().stream()
+                .filter(category -> canReadProtectedDirectory("SERVICE_READ") || category.isActive())
+                .map(this::categoryResponse)
+                .toList();
     }
 
     @Transactional(readOnly = true)
@@ -486,9 +497,35 @@ public class DirectoryService {
 
     @Transactional(readOnly = true)
     public List<DepartmentServiceResponse> departmentServices(UUID departmentId) {
+        if (!canReadProtectedDirectory("SERVICE_READ")) {
+            return publicDepartmentServices(departmentId);
+        }
         departmentScopeService.requireDepartmentAccess(departmentId);
         return departmentServiceRepository.findByDepartmentIdAndActiveTrueOrderByServiceIdAsc(departmentId)
                 .stream().map(this::departmentServiceResponse).toList();
+    }
+
+    private List<DepartmentServiceResponse> publicDepartmentServices(UUID departmentId) {
+        DepartmentEntity department = departmentOrThrow(departmentId);
+        if (!department.isActive() || department.isClosed()) {
+            return List.of();
+        }
+        List<DepartmentServiceEntity> assignments = departmentServiceRepository.findByDepartmentIdAndActiveTrueOrderByServiceIdAsc(departmentId);
+        List<UUID> serviceIds = assignments.stream().map(DepartmentServiceEntity::getServiceId).toList();
+        Map<UUID, QueueServiceEntity> servicesById = queueServiceRepository.findAllById(serviceIds).stream()
+                .filter(QueueServiceEntity::isActive)
+                .collect(java.util.stream.Collectors.toMap(QueueServiceEntity::getId, service -> service));
+        List<UUID> categoryIds = servicesById.values().stream().map(QueueServiceEntity::getCategoryId).distinct().toList();
+        Map<UUID, ServiceCategoryEntity> categoriesById = serviceCategoryRepository.findAllById(categoryIds).stream()
+                .filter(ServiceCategoryEntity::isActive)
+                .collect(java.util.stream.Collectors.toMap(ServiceCategoryEntity::getId, category -> category));
+        return assignments.stream()
+                .filter(assignment -> {
+                    QueueServiceEntity service = servicesById.get(assignment.getServiceId());
+                    return service != null && categoriesById.containsKey(service.getCategoryId());
+                })
+                .map(this::departmentServiceResponse)
+                .toList();
     }
 
     @Transactional
@@ -533,7 +570,12 @@ public class DirectoryService {
         entity.setDepartmentId(request.departmentId());
         entity.setServiceId(serviceId);
         entity.setActive(true);
-        EmployeeServiceAssignmentEntity saved = employeeServiceAssignmentRepository.save(entity);
+        EmployeeServiceAssignmentEntity saved;
+        try {
+            saved = employeeServiceAssignmentRepository.saveAndFlush(entity);
+        } catch (DataIntegrityViolationException ex) {
+            throw conflict("EMPLOYEE_SERVICE_ASSIGNMENT_CONFLICT", "Employee service assignment conflicts with existing data");
+        }
         auditService.write("SERVICE_ASSIGN_TO_EMPLOYEE", "EMPLOYEE_SERVICE_ASSIGNMENT", saved.getId(), simpleJson("serviceId", serviceId.toString()), httpRequest);
     }
 
@@ -578,6 +620,10 @@ public class DirectoryService {
                 entity.getServiceId(),
                 entity.isActive()
         );
+    }
+
+    private boolean canReadProtectedDirectory(String authority) {
+        return CurrentUser.hasAuthority(authority);
     }
 
     private void applyDepartment(DepartmentEntity entity, DepartmentRequest request) {

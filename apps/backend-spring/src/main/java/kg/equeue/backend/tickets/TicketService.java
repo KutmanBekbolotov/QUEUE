@@ -38,6 +38,7 @@ import kg.equeue.backend.tickets.TicketDtos.PauseTicketRequest;
 import kg.equeue.backend.tickets.TicketDtos.TicketResponse;
 import kg.equeue.backend.tickets.TicketDtos.TransferTicketRequest;
 import kg.equeue.backend.tickets.TicketDtos.TvSnapshotResponse;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
@@ -47,7 +48,13 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class TicketService {
 
-    private static final EnumSet<TicketStatus> TV_STATUSES = EnumSet.of(TicketStatus.CALLED, TicketStatus.IN_SERVICE);
+    private static final EnumSet<TicketStatus> ACTIVE_TICKET_STATUSES = EnumSet.of(TicketStatus.CALLED, TicketStatus.IN_SERVICE, TicketStatus.PAUSED);
+    private static final EnumSet<TicketStatus> TV_STATUSES = ACTIVE_TICKET_STATUSES;
+    private static final List<String> ACTIVE_TICKET_STATUS_NAMES = List.of(
+            TicketStatus.CALLED.name(),
+            TicketStatus.IN_SERVICE.name(),
+            TicketStatus.PAUSED.name()
+    );
 
     private final TicketRepository ticketRepository;
     private final TicketEventRepository ticketEventRepository;
@@ -219,6 +226,19 @@ public class TicketService {
     }
 
     @Transactional
+    public TicketResponse recall(UUID id, HttpServletRequest httpRequest) {
+        TicketEntity ticket = ticketRepository.findWithLockById(id)
+                .orElseThrow(() -> notFound("TICKET_NOT_FOUND", "Ticket was not found"));
+        departmentScopeService.requireDepartmentAccess(ticket.getDepartmentId());
+        if (ticket.getWindowId() == null) {
+            throw invalidTransition(ticket.getStatus(), TicketStatus.CALLED);
+        }
+        ServiceWindowEntity window = validOpenWindow(ticket.getWindowId(), ticket.getDepartmentId());
+        requireCanUseWindow(window);
+        return recallLocked(ticket, window, httpRequest);
+    }
+
+    @Transactional
     public TicketResponse callNext(CallNextTicketRequest request, HttpServletRequest httpRequest) {
         departmentScopeService.requireDepartmentAccess(request.departmentId());
         ServiceWindowEntity window = validOpenWindow(request.windowId(), request.departmentId());
@@ -347,6 +367,17 @@ public class TicketService {
         return tvSnapshotUnchecked(departmentId);
     }
 
+    @Transactional(readOnly = true)
+    public TicketResponse activeTicketForOperatorDashboard(UUID operatorId, UUID windowId) {
+        if (operatorId != null) {
+            return ticketRepository
+                    .findFirstByServedByUserIdAndStatusInOrderByCalledAtDescCreatedAtDesc(operatorId, ACTIVE_TICKET_STATUSES)
+                    .map(this::response)
+                    .orElseGet(() -> activeTicketForWindow(windowId));
+        }
+        return activeTicketForWindow(windowId);
+    }
+
     private TvSnapshotResponse tvSnapshotUnchecked(UUID departmentId) {
         List<TicketResponse> tickets = ticketRepository
                 .findTop20ByDepartmentIdAndStatusInOrderByCalledAtDescCreatedAtDesc(departmentId, TV_STATUSES)
@@ -356,24 +387,59 @@ public class TicketService {
         return new TvSnapshotResponse(departmentId, tickets, Instant.now());
     }
 
+    private TicketResponse activeTicketForWindow(UUID windowId) {
+        if (windowId == null) {
+            return null;
+        }
+        return ticketRepository
+                .findFirstByWindowIdAndStatusInOrderByCalledAtDescCreatedAtDesc(windowId, ACTIVE_TICKET_STATUSES)
+                .map(this::response)
+                .orElse(null);
+    }
+
     private TicketResponse callLocked(TicketEntity ticket, ServiceWindowEntity window, HttpServletRequest httpRequest, String eventType) {
         TicketStatus from = ticket.getStatus();
-        if (from != TicketStatus.WAITING && from != TicketStatus.CALLED) {
+        if (from == TicketStatus.CALLED) {
+            if (ticket.getWindowId() != null && !ticket.getWindowId().equals(window.getId())) {
+                throw new ApiException(HttpStatus.CONFLICT, "TICKET_ALREADY_CALLED_TO_ANOTHER_WINDOW",
+                        "Ticket is already called to another window", Map.of("windowId", ticket.getWindowId()));
+            }
+            return recallLocked(ticket, window, httpRequest);
+        }
+        if (from != TicketStatus.WAITING) {
             throw invalidTransition(ticket.getStatus(), TicketStatus.CALLED);
         }
         if (!TicketTransitionPolicy.canTransition(from, TicketStatus.CALLED)) {
             throw invalidTransition(ticket.getStatus(), TicketStatus.CALLED);
         }
-        if (from == TicketStatus.CALLED && ticket.getWindowId() != null && !ticket.getWindowId().equals(window.getId())) {
-            throw new ApiException(HttpStatus.CONFLICT, "TICKET_ALREADY_CALLED_TO_ANOTHER_WINDOW",
-                    "Ticket is already called to another window", Map.of("windowId", ticket.getWindowId()));
-        }
+        UUID operatorId = CurrentUser.idOrNull();
+        requireNoOtherActiveTicket(ticket.getId(), window.getId(), operatorId);
         ticket.setStatus(TicketStatus.CALLED);
         ticket.setWindowId(window.getId());
         ticket.setHallId(window.getHallId());
-        ticket.setServedByUserId(CurrentUser.idOrNull());
+        ticket.setServedByUserId(operatorId);
         ticket.setCalledAt(Instant.now());
         return saveTransition(ticket, from, TicketStatus.CALLED, eventType, httpRequest);
+    }
+
+    private TicketResponse recallLocked(TicketEntity ticket, ServiceWindowEntity window, HttpServletRequest httpRequest) {
+        if (ticket.getStatus() != TicketStatus.CALLED) {
+            throw invalidTransition(ticket.getStatus(), TicketStatus.CALLED);
+        }
+        if (ticket.getWindowId() != null && !ticket.getWindowId().equals(window.getId())) {
+            throw new ApiException(HttpStatus.CONFLICT, "TICKET_ALREADY_CALLED_TO_ANOTHER_WINDOW",
+                    "Ticket is already called to another window", Map.of("windowId", ticket.getWindowId()));
+        }
+        Instant now = Instant.now();
+        ticket.setWindowId(window.getId());
+        ticket.setHallId(window.getHallId());
+        if (ticket.getServedByUserId() == null) {
+            ticket.setServedByUserId(CurrentUser.idOrNull());
+        }
+        ticket.setCalledAt(now);
+        ticket.setRecalledAt(now);
+        ticket.setRecallCount(ticket.getRecallCount() + 1);
+        return saveTransition(ticket, TicketStatus.CALLED, TicketStatus.CALLED, "ticket.recalled", httpRequest);
     }
 
     private TicketResponse transition(UUID id, TicketStatus expected, TicketStatus target, String eventType, TicketMutator mutator, HttpServletRequest httpRequest) {
@@ -393,7 +459,13 @@ public class TicketService {
 
     private TicketResponse saveTransition(TicketEntity ticket, TicketStatus from, TicketStatus to, String eventType, HttpServletRequest httpRequest) {
         writeEvent(ticket, eventType, from, to, TicketActorType.USER, CurrentUser.idOrNull(), Map.of());
-        TicketEntity saved = ticketRepository.save(ticket);
+        TicketEntity saved;
+        try {
+            saved = ticketRepository.save(ticket);
+            ticketRepository.flush();
+        } catch (DataIntegrityViolationException ex) {
+            throw activeTicketConflict(ticket.getId(), ticket.getWindowId(), ticket.getServedByUserId());
+        }
         auditService.write(eventType.toUpperCase().replace('.', '_'), "TICKET", saved.getId(), simpleJson("status", to.name()), httpRequest);
         ticketDomainEventPublisher.publish(eventType, saved);
         return response(saved);
@@ -434,7 +506,7 @@ public class TicketService {
     }
 
     private ServiceWindowEntity validOpenWindow(UUID windowId, UUID departmentId) {
-        ServiceWindowEntity window = serviceWindowRepository.findById(windowId)
+        ServiceWindowEntity window = serviceWindowRepository.findWithLockById(windowId)
                 .orElseThrow(() -> notFound("WINDOW_NOT_FOUND", "Window was not found"));
         if (!window.getDepartmentId().equals(departmentId)) {
             throw badRequest("WINDOW_DEPARTMENT_MISMATCH", "Window does not belong to ticket department");
@@ -454,6 +526,68 @@ public class TicketService {
             return;
         }
         departmentScopeService.requireWindowAccess(window.getId());
+    }
+
+    private void requireNoOtherActiveTicket(UUID ticketId, UUID windowId, UUID operatorId) {
+        lockOperator(operatorId);
+        if (otherActiveTicketExistsForWindow(windowId, ticketId)
+                || (operatorId != null && otherActiveTicketExistsForOperator(operatorId, ticketId))) {
+            throw activeTicketConflict(ticketId, windowId, operatorId);
+        }
+    }
+
+    private void lockOperator(UUID operatorId) {
+        if (operatorId == null || jdbcTemplate == null) {
+            return;
+        }
+        jdbcTemplate.queryForList("""
+                SELECT id
+                FROM users
+                WHERE id = :operatorId
+                FOR UPDATE
+                """,
+                new MapSqlParameterSource().addValue("operatorId", operatorId),
+                UUID.class);
+    }
+
+    private boolean otherActiveTicketExistsForWindow(UUID windowId, UUID ticketId) {
+        if (jdbcTemplate == null) {
+            return false;
+        }
+        return !jdbcTemplate.queryForList("""
+                SELECT id
+                FROM tickets
+                WHERE current_window_id = :windowId
+                  AND id <> :ticketId
+                  AND status IN (:statuses)
+                FOR UPDATE
+                LIMIT 1
+                """,
+                new MapSqlParameterSource()
+                        .addValue("windowId", windowId)
+                        .addValue("ticketId", ticketId)
+                        .addValue("statuses", ACTIVE_TICKET_STATUS_NAMES),
+                UUID.class).isEmpty();
+    }
+
+    private boolean otherActiveTicketExistsForOperator(UUID operatorId, UUID ticketId) {
+        if (jdbcTemplate == null) {
+            return false;
+        }
+        return !jdbcTemplate.queryForList("""
+                SELECT id
+                FROM tickets
+                WHERE current_operator_id = :operatorId
+                  AND id <> :ticketId
+                  AND status IN (:statuses)
+                FOR UPDATE
+                LIMIT 1
+                """,
+                new MapSqlParameterSource()
+                        .addValue("operatorId", operatorId)
+                        .addValue("ticketId", ticketId)
+                        .addValue("statuses", ACTIVE_TICKET_STATUS_NAMES),
+                UUID.class).isEmpty();
     }
 
     private TicketEntity ticketOrThrow(UUID id) {
@@ -481,6 +615,8 @@ public class TicketService {
                 ticket.getStatus(),
                 ticket.getCreatedAt(),
                 ticket.getCalledAt(),
+                ticket.getRecalledAt(),
+                ticket.getRecallCount(),
                 ticket.getServiceStartedAt(),
                 ticket.getServicePausedAt(),
                 ticket.getServiceCompletedAt(),
@@ -496,6 +632,15 @@ public class TicketService {
     private ApiException invalidTransition(TicketStatus from, TicketStatus to) {
         return new ApiException(HttpStatus.CONFLICT, "INVALID_TICKET_STATUS_TRANSITION",
                 "Invalid ticket status transition", Map.of("from", from, "to", to));
+    }
+
+    private ApiException activeTicketConflict(UUID ticketId, UUID windowId, UUID operatorId) {
+        Map<String, Object> details = new java.util.LinkedHashMap<>();
+        details.put("ticketId", ticketId);
+        details.put("windowId", windowId);
+        details.put("operatorId", operatorId);
+        return new ApiException(HttpStatus.CONFLICT, "OPERATOR_HAS_ACTIVE_TICKET",
+                "Operator or window already has an active ticket", details);
     }
 
     private ApiException notFound(String code, String message) {

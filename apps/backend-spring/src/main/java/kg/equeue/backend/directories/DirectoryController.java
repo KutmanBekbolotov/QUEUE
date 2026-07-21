@@ -54,7 +54,7 @@ public class DirectoryController {
     }
 
     @GetMapping("/regions")
-    @PreAuthorize("hasAuthority('REGION_READ')")
+    @PreAuthorize("permitAll()")
     List<RegionResponse> regions() {
         return directoryService.regions();
     }
@@ -84,7 +84,7 @@ public class DirectoryController {
     }
 
     @GetMapping("/departments")
-    @PreAuthorize("hasAuthority('DEPARTMENT_READ')")
+    @PreAuthorize("permitAll()")
     List<DepartmentResponse> departments() {
         return directoryService.departments();
     }
@@ -227,7 +227,7 @@ public class DirectoryController {
     }
 
     @GetMapping("/service-categories")
-    @PreAuthorize("hasAuthority('SERVICE_READ')")
+    @PreAuthorize("permitAll()")
     List<ServiceCategoryResponse> serviceCategories() {
         return directoryService.serviceCategories();
     }
@@ -290,7 +290,7 @@ public class DirectoryController {
     }
 
     @GetMapping("/departments/{departmentId}/services")
-    @PreAuthorize("hasAuthority('SERVICE_READ')")
+    @PreAuthorize("permitAll()")
     List<DepartmentServiceResponse> departmentServices(@PathVariable UUID departmentId) {
         return directoryService.departmentServices(departmentId);
     }

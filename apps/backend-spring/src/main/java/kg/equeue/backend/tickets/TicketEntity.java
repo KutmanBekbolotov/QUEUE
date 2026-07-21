@@ -90,6 +90,12 @@ public class TicketEntity {
     @Column(name = "called_at")
     private Instant calledAt;
 
+    @Column(name = "recalled_at")
+    private Instant recalledAt;
+
+    @Column(name = "recall_count", nullable = false)
+    private int recallCount;
+
     @Column(name = "service_started_at")
     private Instant serviceStartedAt;
 
@@ -307,6 +313,22 @@ public class TicketEntity {
         this.calledAt = calledAt;
     }
 
+    public Instant getRecalledAt() {
+        return recalledAt;
+    }
+
+    public void setRecalledAt(Instant recalledAt) {
+        this.recalledAt = recalledAt;
+    }
+
+    public int getRecallCount() {
+        return recallCount;
+    }
+
+    public void setRecallCount(int recallCount) {
+        this.recallCount = recallCount;
+    }
+
     public Instant getServiceStartedAt() {
         return serviceStartedAt;
     }
@@ -383,4 +405,3 @@ public class TicketEntity {
         return version;
     }
 }
-

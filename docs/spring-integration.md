@@ -325,6 +325,9 @@ Operators:
 | Method | Path | Permission | Response |
 | --- | --- | --- | --- |
 | `GET` | `/api/v1/operators` | `USER_READ` | `UserResponse[]` только операторы |
+| `POST` | `/api/v1/operators/{operatorId}/shifts/open` | `WINDOW_OPEN` | `ShiftResponse` |
+| `POST` | `/api/v1/operators/{operatorId}/shifts/current/close` | `WINDOW_CLOSE` | `ShiftResponse` |
+| `GET` | `/api/v1/operators/{operatorId}/dashboard` | `TICKET_READ` или `USER_READ` | `OperatorDashboardResponse` |
 
 DTO:
 
@@ -367,9 +370,34 @@ type UserResponse = {
   createdAt: string;
   updatedAt: string;
 };
+
+type OpenShiftRequest = {
+  departmentId?: string;
+  windowId?: string;
+};
+
+type ShiftResponse = {
+  id: string;
+  operatorId: string;
+  departmentId: string;
+  windowId: string | null;
+  status: 'OPEN' | 'CLOSED';
+  openedAt: string;
+  closedAt: string | null;
+};
+
+type OperatorDashboardResponse = {
+  operatorId: string;
+  shift: ShiftResponse | null;
+  window: WindowResponse | null;
+  activeTicket: TicketResponse | null;
+  generatedAt: string;
+};
 ```
 
 Для пользователя с ролью `OPERATOR` поле `departmentId` обязательно. Создание пользователя или назначение роли без отделения возвращает `400 OPERATOR_DEPARTMENT_REQUIRED`. `windowId` и `serviceIds` сохраняются вместе с пользователем; элементы `serviceIds` могут быть UUID или кодами услуг (`VS`, `TS`). Для совместимости backend также принимает это поле под именами `services` и `serviceCodes`, а в ответах дублирует `serviceCodes` как `services`. При `PATCH` пропущенные назначения не меняются, пустой `windowId` очищает окно, а пустой `serviceIds` очищает услуги. Отдельные endpoints назначения окна и услуг продолжают работать.
+
+Смена оператора хранится отдельно от состояния окна. `/shifts/open` открывает смену для оператора и по умолчанию берёт назначенное окно; `/windows/{id}/open` по-прежнему управляет физическим статусом окна. Dashboard атомарно возвращает текущую смену, окно и активный талон.
 
 ### 7.2. Roles and permissions
 
@@ -417,11 +445,13 @@ Base controller path: `/api/v1`.
 
 | Method | Path | Permission | Body | Response |
 | --- | --- | --- | --- | --- |
-| `GET` | `/regions` | `REGION_READ` | - | `RegionResponse[]` |
+| `GET` | `/regions` | public read или `REGION_READ` | - | `RegionResponse[]` |
 | `POST` | `/regions` | `REGION_CREATE` | `RegionRequest` | `RegionResponse` |
 | `GET` | `/regions/{id}` | `REGION_READ` | - | `RegionResponse` |
 | `PUT/PATCH` | `/regions/{id}` | `REGION_UPDATE` | `RegionRequest` | `RegionResponse` |
 | `PATCH` | `/regions/{id}/status` | `REGION_UPDATE` | `ActiveStatusRequest` | `RegionResponse` |
+
+Публичный `GET /regions` без Bearer-токена возвращает только активные регионы.
 
 ```ts
 type RegionRequest = {
@@ -443,12 +473,14 @@ type RegionResponse = {
 
 | Method | Path | Permission | Body | Response |
 | --- | --- | --- | --- | --- |
-| `GET` | `/departments` | `DEPARTMENT_READ` | - | `DepartmentResponse[]` |
+| `GET` | `/departments` | public read или `DEPARTMENT_READ` | - | `DepartmentResponse[]` |
 | `POST` | `/departments` | `DEPARTMENT_CREATE` | `DepartmentRequest` | `DepartmentResponse` |
 | `GET` | `/departments/{id}` | `DEPARTMENT_READ` | - | `DepartmentResponse` |
 | `PUT/PATCH` | `/departments/{id}` | `DEPARTMENT_UPDATE` | `DepartmentRequest` | `DepartmentResponse` |
 | `PATCH` | `/departments/{id}/status` | `DEPARTMENT_UPDATE` или `DEPARTMENT_CLOSE` | `DepartmentStatusRequest` | `DepartmentResponse` |
 | `DELETE` | `/departments/{id}` | `DEPARTMENT_UPDATE` или `DEPARTMENT_CLOSE` | - | `204` |
+
+Публичный `GET /departments` без Bearer-токена возвращает только активные и не закрытые подразделения.
 
 ```ts
 type DepartmentRequest = {
@@ -545,7 +577,7 @@ type WindowResponse = {
 
 | Method | Path | Permission | Body | Response |
 | --- | --- | --- | --- | --- |
-| `GET` | `/service-categories` | `SERVICE_READ` | - | `ServiceCategoryResponse[]` |
+| `GET` | `/service-categories` | public read или `SERVICE_READ` | - | `ServiceCategoryResponse[]` |
 | `POST` | `/service-categories` | `SERVICE_CREATE` | `ServiceCategoryRequest` | `ServiceCategoryResponse` |
 | `GET` | `/service-categories/{id}` | `SERVICE_READ` | - | `ServiceCategoryResponse` |
 | `PUT/PATCH` | `/service-categories/{id}` | `SERVICE_UPDATE` | `ServiceCategoryRequest` | `ServiceCategoryResponse` |
@@ -555,11 +587,13 @@ type WindowResponse = {
 | `PUT/PATCH` | `/services/{id}` | `SERVICE_UPDATE` | `ServiceRequest` | `ServiceResponse` |
 | `PATCH` | `/services/{id}/status` | `SERVICE_UPDATE` | `ActiveStatusRequest` | `ServiceResponse` |
 | `DELETE` | `/services/{id}` | `SERVICE_UPDATE` | - | `204` |
-| `GET` | `/departments/{departmentId}/services` | `SERVICE_READ` | - | `DepartmentServiceResponse[]` |
+| `GET` | `/departments/{departmentId}/services` | public read или `SERVICE_READ` | - | `DepartmentServiceResponse[]` |
 | `POST` | `/departments/{departmentId}/services/{serviceId}` | `SERVICE_ASSIGN_TO_DEPARTMENT` | `DepartmentServiceRequest?` | `DepartmentServiceResponse` |
 | `DELETE` | `/departments/{departmentId}/services/{serviceId}` | `SERVICE_ASSIGN_TO_DEPARTMENT` | - | `204` |
 | `POST` | `/employees/{employeeId}/services/{serviceId}` | `SERVICE_ASSIGN_TO_EMPLOYEE` | `AssignEmployeeServiceRequest` | `204` |
 | `DELETE` | `/employees/{employeeId}/services/{serviceId}?departmentId={departmentId}` | `SERVICE_ASSIGN_TO_EMPLOYEE` | - | `204` |
+
+Публичные `GET /service-categories` и `GET /departments/{departmentId}/services` без Bearer-токена возвращают только активные категории, активные услуги и активные связи department-service.
 
 ```ts
 type ServiceCategoryRequest = {
@@ -601,6 +635,7 @@ Base: `/api/v1/tickets`
 | `GET` | `(base)?departmentId={id}` | `TICKET_READ` | optional `departmentId` | `TicketResponse[]` |
 | `GET` | `/{id}` | `TICKET_READ` | - | `TicketResponse` |
 | `POST` | `/{id}/call` | `TICKET_CALL` | `CallTicketRequest` | `TicketResponse` |
+| `POST` | `/{id}/recall` | `TICKET_CALL` | - | `TicketResponse` |
 | `POST` | `/call-next` | `TICKET_CALL` | `CallNextTicketRequest` | `TicketResponse` |
 | `POST` | `/{id}/start` | `TICKET_START` | - | `TicketResponse` |
 | `POST` | `/{id}/pause` | `TICKET_PAUSE` | `PauseTicketRequest?` | `TicketResponse` |
@@ -675,6 +710,8 @@ type TicketResponse = {
   status: TicketStatus;
   createdAt: string;
   calledAt: string | null;
+  recalledAt: string | null;
+  recallCount: number;
   serviceStartedAt: string | null;
   servicePausedAt: string | null;
   serviceCompletedAt: string | null;
@@ -702,6 +739,8 @@ Important rules:
 
 - `call` and `call-next` требуют открытое окно (`WindowStatus.OPEN`) в том же department.
 - `call-next` выбирает первый `WAITING` ticket по `priority DESC, created_at ASC`.
+- Для одного окна и одного оператора одновременно разрешён только один активный ticket в статусе `CALLED`, `IN_SERVICE` или `PAUSED`; конфликт возвращает `409 OPERATOR_HAS_ACTIVE_TICKET`.
+- `recall` и повторный `call` для уже вызванного ticket не меняют статус, обновляют `calledAt`/`recalledAt`, увеличивают `recallCount` и публикуют `ticket.recalled`.
 - `cancel` требует `cancellationReasonId` или `comment`.
 - `pauseReasonId` и `cancellationReasonId` проверяются на существование.
 - `transfer` переводит текущий ticket в `TRANSFERRED`; новый ticket в target department не создаётся.
@@ -1064,15 +1103,19 @@ type TicketDomainEvent = {
   ticketNumber: string;
   departmentId: string;
   windowId: string | null;
+  operatorId: string | null;
   serviceId: string;
   status: TicketStatus;
   occurredAt: string;
+  timestamp: string;
 };
 ```
 
 Event types:
 
-`ticket.created`, `ticket.called`, `ticket.started`, `ticket.paused`, `ticket.resumed`, `ticket.completed`, `ticket.cancelled`, `ticket.no_show`, `ticket.transferred`.
+`ticket.created`, `ticket.called`, `ticket.recalled`, `ticket.started`, `ticket.paused`, `ticket.resumed`, `ticket.completed`, `ticket.cancelled`, `ticket.no_show`, `ticket.transferred`.
+
+SSE отправляет canonical event name с точкой и совместимый alias с подчёркиванием (`ticket.called` и `ticket_called`). Для паузы дополнительно отправляется alias `service_paused`.
 
 ## 13. Reports API
 

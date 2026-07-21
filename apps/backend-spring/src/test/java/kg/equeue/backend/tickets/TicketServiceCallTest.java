@@ -89,7 +89,7 @@ class TicketServiceCallTest {
         ticket.setCalledAt(previousCalledAt);
         ServiceWindowEntity window = openWindow(windowId, departmentId);
         when(ticketRepository.findWithLockById(ticket.getId())).thenReturn(Optional.of(ticket));
-        when(serviceWindowRepository.findById(windowId)).thenReturn(Optional.of(window));
+        when(serviceWindowRepository.findWithLockById(windowId)).thenReturn(Optional.of(window));
         when(ticketRepository.save(any(TicketEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         TicketDtos.TicketResponse response = ticketService.call(
@@ -101,9 +101,11 @@ class TicketServiceCallTest {
         assertThat(response.status()).isEqualTo(TicketStatus.CALLED);
         assertThat(response.windowId()).isEqualTo(windowId);
         assertThat(response.calledAt()).isAfter(previousCalledAt);
+        assertThat(response.recalledAt()).isNotNull();
+        assertThat(response.recallCount()).isEqualTo(1);
         ArgumentCaptor<TicketEventEntity> eventCaptor = ArgumentCaptor.forClass(TicketEventEntity.class);
         verify(ticketEventRepository).save(eventCaptor.capture());
-        assertThat(eventCaptor.getValue().getEventType()).isEqualTo("ticket.called");
+        assertThat(eventCaptor.getValue().getEventType()).isEqualTo("ticket.recalled");
         assertThat(eventCaptor.getValue().getFromStatus()).isEqualTo(TicketStatus.CALLED);
         assertThat(eventCaptor.getValue().getToStatus()).isEqualTo(TicketStatus.CALLED);
     }
@@ -117,7 +119,7 @@ class TicketServiceCallTest {
         ticket.setWindowId(originalWindowId);
         ServiceWindowEntity requestedWindow = openWindow(requestedWindowId, departmentId);
         when(ticketRepository.findWithLockById(ticket.getId())).thenReturn(Optional.of(ticket));
-        when(serviceWindowRepository.findById(requestedWindowId)).thenReturn(Optional.of(requestedWindow));
+        when(serviceWindowRepository.findWithLockById(requestedWindowId)).thenReturn(Optional.of(requestedWindow));
 
         assertThatThrownBy(() -> ticketService.call(
                 ticket.getId(),
