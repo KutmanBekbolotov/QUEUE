@@ -12,10 +12,13 @@ import kg.equeue.backend.tickets.TicketDtos.CreateTicketRequest;
 import kg.equeue.backend.tickets.TicketDtos.PauseTicketRequest;
 import kg.equeue.backend.tickets.TicketDtos.TicketResponse;
 import kg.equeue.backend.tickets.TicketDtos.TransferTicketRequest;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -48,6 +51,13 @@ public class TicketController {
     @PreAuthorize("hasAuthority('TICKET_READ')")
     TicketResponse get(@PathVariable UUID id) {
         return ticketService.get(id);
+    }
+
+    @DeleteMapping("/{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    @PreAuthorize("hasAuthority('TICKET_DELETE')")
+    void delete(@PathVariable UUID id, HttpServletRequest httpRequest) {
+        ticketService.delete(id, httpRequest);
     }
 
     @PostMapping("/{id}/call")

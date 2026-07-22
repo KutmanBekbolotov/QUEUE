@@ -634,6 +634,7 @@ Base: `/api/v1/tickets`
 | `POST` | `(base)` | `TICKET_CREATE` | `CreateTicketRequest` | `TicketResponse` |
 | `GET` | `(base)?departmentId={id}` | `TICKET_READ` | optional `departmentId` | `TicketResponse[]` |
 | `GET` | `/{id}` | `TICKET_READ` | - | `TicketResponse` |
+| `DELETE` | `/{id}` | `TICKET_DELETE` | - | `204` |
 | `POST` | `/{id}/call` | `TICKET_CALL` | `CallTicketRequest` | `TicketResponse` |
 | `POST` | `/{id}/recall` | `TICKET_CALL` | - | `TicketResponse` |
 | `POST` | `/call-next` | `TICKET_CALL` | `CallNextTicketRequest` | `TicketResponse` |
@@ -645,7 +646,7 @@ Base: `/api/v1/tickets`
 | `POST` | `/{id}/no-show` | `TICKET_NO_SHOW` | - | `TicketResponse` |
 | `POST` | `/{id}/transfer` | `TICKET_TRANSFER` | `TransferTicketRequest` | `TicketResponse` |
 
-Для scoped users `GET /tickets` без `departmentId` вернёт `403 DEPARTMENT_REQUIRED`. Admin/Super Admin могут читать все.
+Для scoped users `GET /tickets` без `departmentId` вернёт `403 DEPARTMENT_REQUIRED`. Admin/Super Admin могут читать все. `DELETE /tickets/{id}` физически удаляет ticket из БД, каскадно удаляет `ticket_events`, публикует `ticket.deleted` и доступен пользователям с `TICKET_DELETE`; базово permission выдан `SUPER_ADMIN` и `ADMIN`.
 
 ### 9.2. DTO
 
@@ -1118,7 +1119,7 @@ type TicketDomainEvent = {
 
 Event types:
 
-`ticket.created`, `ticket.called`, `ticket.recalled`, `ticket.started`, `ticket.paused`, `ticket.resumed`, `ticket.completed`, `ticket.cancelled`, `ticket.no_show`, `ticket.transferred`.
+`ticket.created`, `ticket.called`, `ticket.recalled`, `ticket.started`, `ticket.paused`, `ticket.resumed`, `ticket.completed`, `ticket.cancelled`, `ticket.no_show`, `ticket.transferred`, `ticket.deleted`.
 
 SSE отправляет canonical event name с точкой и совместимый alias с подчёркиванием (`ticket.called` и `ticket_called`). Для паузы дополнительно отправляется alias `service_paused`.
 

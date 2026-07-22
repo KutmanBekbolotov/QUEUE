@@ -503,6 +503,7 @@ Endpoints:
 
 - `GET /api/v1/tickets?departmentId=...`
 - `GET /api/v1/tickets/{id}`
+- `DELETE /api/v1/tickets/{id}`
 - `POST /api/v1/tickets/{id}/call`
 - `POST /api/v1/tickets/{id}/recall`
 - `POST /api/v1/tickets/call-next`
@@ -605,11 +606,12 @@ type TicketResponse = {
 
 Фронт должен блокировать кнопки, которые не соответствуют текущему статусу, но окончательную проверку оставлять backend.
 Повторный `POST /api/v1/tickets/call-next`, когда у оператора или окна уже есть активный талон, возвращает этот активный `TicketResponse` без ошибки; фронт должен показать его как текущий талон и не считать это неуспешным вызовом.
+Удаление из истории: `DELETE /api/v1/tickets/{id}` требует `TICKET_DELETE`, физически удаляет талон из БД и возвращает `204`. После успешного ответа фронт должен убрать талон из списка; backend также публикует `ticket.deleted`.
 
 SSE:
 
 - Подключение: `new EventSource('/api/v1/operator/{windowId}/stream')`.
-- Stream привязан к окну для прав доступа, но backend также подписывает подключение на события всего подразделения. Фронт должен слушать `ticket.created`, `ticket.called`, `ticket.started`, `ticket.completed`, `ticket.cancelled`, `ticket.no_show`, `ticket.transferred` и по ним обновлять список ожидания/активный талон без перезагрузки страницы.
+- Stream привязан к окну для прав доступа, но backend также подписывает подключение на события всего подразделения. Фронт должен слушать `ticket.created`, `ticket.called`, `ticket.started`, `ticket.completed`, `ticket.cancelled`, `ticket.no_show`, `ticket.transferred`, `ticket.deleted` и по ним обновлять список ожидания/активный талон без перезагрузки страницы.
 - Так как native `EventSource` не позволяет отправлять `Authorization` header, для защищенного SSE нужны один из вариантов:
   - использовать fetch-based SSE polyfill с headers;
   - проксировать SSE через BFF;

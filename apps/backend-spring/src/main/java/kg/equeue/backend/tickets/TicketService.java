@@ -219,6 +219,17 @@ public class TicketService {
         return response(ticket);
     }
 
+    @Transactional
+    public void delete(UUID id, HttpServletRequest httpRequest) {
+        TicketEntity ticket = ticketRepository.findWithLockById(id)
+                .orElseThrow(() -> notFound("TICKET_NOT_FOUND", "Ticket was not found"));
+        departmentScopeService.requireDepartmentAccess(ticket.getDepartmentId());
+        ticketDomainEventPublisher.publish("ticket.deleted", ticket);
+        ticketRepository.delete(ticket);
+        ticketRepository.flush();
+        auditService.write("TICKET_DELETE", "TICKET", id, simpleJson("ticketNumber", ticket.getTicketNumber()), httpRequest);
+    }
+
     @Transactional(readOnly = true)
     public TicketResponse getQrSelfServiceTicket(UUID id) {
         TicketEntity ticket = ticketRepository.findById(id)
